@@ -1,9 +1,14 @@
 # Author: Nathan Tisdale
 # Purpose: proof of concept 'curator' app leveraging Met Museam api
-  
-import requests
+
+import requests # used for rest
 from urllib.parse import urlencode  #used to convert dictionary to rest parameters
-import sqlite3
+from urllib.request import urlopen # used in retrieving image
+import sqlite3 # used for local cache of data
+import io  
+from PIL import Image, ImageTk  # used to handle images
+import tkinter as tk # used for gui
+
 
 class User:
     def __init__(self, name):
@@ -102,7 +107,23 @@ class Database:
     def insertArtObject(self, user, artObject):
         self.dbCursor.execute('''INSERT INTO zeronormal (user, objectId, title, artist, imageUrl) VALUES (?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getImageUrl(),))
 
-#class Exhibit(ObjectList):
+    def getArtObjectUrls(self, user):
+        self.dbCursor.execute("SELECT imageUrl from zeronormal where user=? limit 1", (user.getName(),))
+        return self.dbCursor.fetchone()
+    
+class Display():
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Met Museum Curator")
+
+    def show(self, imageUrl):
+        openedUrl = urlopen(imageUrl)
+        objectImage = io.BytesIO(openedUrl.read())
+        pilImage = Image.open(objectImage)
+        tkImage = ImageTk.PhotoImage(pilImage)
+        label = tk.Label(self.root, image=tkImage)
+        label.pack(padx=5, pady=5)
+        self.root.mainloop()
 
 
 def main():
@@ -128,7 +149,14 @@ def main():
     for item in response.items:
         # insert each itme into db as if favorited
         db.insertArtObject(user, item)
-        print("Saved " + item.getTitle() + " to db in memory")
+        #print("Saved " + item.getTitle() + " to db in memory")
+    
+    cachedUrl = db.getArtObjectUrls(user)
+    
+    window = Display()
+    window.show(cachedUrl[0])
+
+    
     
 
 
