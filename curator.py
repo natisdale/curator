@@ -117,6 +117,7 @@ class Display():
         self.root.title("Met Museum Curator")
 
     def show(self, imageUrl):
+        # adapted from https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
         openedUrl = urlopen(imageUrl)
         objectImage = io.BytesIO(openedUrl.read())
         pilImage = Image.open(objectImage)
