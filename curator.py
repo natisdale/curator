@@ -13,6 +13,7 @@ import tkinter as tk # used for gui
 class User:
     def __init__(self, name):
         self.name = name
+        self.favorites = ObjectList()
 
     def getName(self):
         return self.name
@@ -31,6 +32,7 @@ class Query:
         self.parameters = {}
         self.museum = museum
         self.setParameter("hasImage", "true")
+        self.resultSet = ObjectList()
 
     def setParameter(self, parameterName, parameterValue):
         self.parameters[parameterName] = parameterValue
@@ -39,7 +41,7 @@ class Query:
         del self.parameters[parameterName]
 
     def runQuery(self):
-        matches = ObjectList()
+        resultSet = ObjectList()
         queryPayload = {}
         queryHeaders= {}
         q = self.museum.getSearchUrlBase()
@@ -60,13 +62,13 @@ class Query:
             # print(objectJsonResponse['title'])
             # print(objectJsonResponse['artistDisplayName'])
             # print(objectJsonResponse['primaryImageSmall'])
-            matches.addItem(ArtObject(
+            resultSet.addItem(ArtObject(
                 objectJsonResponse['objectID'],
                 objectJsonResponse['title'],
                 objectJsonResponse['artistDisplayName'],
                 objectJsonResponse['primaryImageSmall']
             ))
-        return matches
+        return resultSet
 
 class ObjectList:
     def __init__(self):
