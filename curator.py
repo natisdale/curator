@@ -1,5 +1,5 @@
 # Author: Nathan Tisdale
-# Purpose: proof of concept 'curator' app leveraging Met Museum api
+# Purpose: proof of concept 'curator' app leveraging Met Museum Open Access API
 
 import logging # used for logging
 import requests # used for rest
@@ -140,7 +140,7 @@ class Database:
         self.dbConnect.close
         logging.debug("Releasing Database resource")    
     
-class Display():
+class Window():
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Met Museum Curator")
@@ -178,7 +178,7 @@ def main():
     user.saveFavorites()
 
     # Instantiate a Display object and show a favorite    
-    window = Display()
+    window = Window()
     window.show(user.favorites.pop())
 
 if __name__ == "__main__":
