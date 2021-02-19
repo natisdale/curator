@@ -43,6 +43,9 @@ class Museum:
     def getSearchUrlBase(self):
         return self.searchUrlBase
 
+    def getObjectUrlBase(self):
+        return self.objectUrlBase
+
 class Query:
     def __init__(self, museum):
         self.parameters = {}
@@ -69,7 +72,7 @@ class Query:
             objectPayload = {}
             objectResponse = requests.request(
                 "GET",
-                self.museum.objectUrlBase+str(id),
+                self.museum.getObjectUrlBase()+str(id),
                 headers=objectHeaders,
                 data=objectPayload
                 )
@@ -138,16 +141,15 @@ class Display():
         self.root = tk.Tk()
         self.root.title("Met Museum Curator")
 
-    def show(self, imageUrl):
+    def show(self, artObject):
         # adapted from https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
-        openedUrl = urlopen(imageUrl)
+        openedUrl = urlopen(artObject.getImageUrl())
         objectImage = io.BytesIO(openedUrl.read())
         pilImage = Image.open(objectImage)
         tkImage = ImageTk.PhotoImage(pilImage)
         label = tk.Label(self.root, image=tkImage)
         label.pack(padx=5, pady=5)
         self.root.mainloop()
-
 
 def main():
     # Create an instance of a User
@@ -173,7 +175,7 @@ def main():
 
     # Instantiate a Display object and show a favorite    
     window = Display()
-    window.show(user.favorites.pop().getImageUrl())
+    window.show(user.favorites.pop())
 
 if __name__ == "__main__":
     main()
