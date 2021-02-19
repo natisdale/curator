@@ -16,9 +16,9 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 class User:
     def __init__(self, name):
         self.name = name
-        self.favorites = ObjectList()
+        self.favorites = []
         self.loadFavorites()
-        logging.debug(("created user: " + self.name + " with " + str(len(self.favorites.items)) + " items"))
+        logging.debug(("created user: " + self.name + " with " + str(len(self.favorites)) + " items"))
 
     def getName(self):
         return self.name
@@ -27,11 +27,11 @@ class User:
         db = Database(DB_PATH)
         self.favorites = db.getFavorites(self)
         if self.favorites == None:
-            self.favorites = ObjectList()
+            self.favorites = []
         del db
 
     def saveFavorites(self):
-        for artObject in self.favorites.items:
+        for artObject in self.favorites:
             artObject.save(self)
 
 class Museum:
@@ -48,7 +48,7 @@ class Query:
         self.parameters = {}
         self.museum = museum
         self.setParameter("hasImage", "true")
-        self.resultSet = ObjectList()
+        self.resultSet = []
 
     def setParameter(self, parameterName, parameterValue):
         self.parameters[parameterName] = parameterValue
@@ -57,7 +57,7 @@ class Query:
         del self.parameters[parameterName]
 
     def runQuery(self):
-        resultSet = ObjectList()
+        resultSet = []
         queryPayload = {}
         queryHeaders= {}
         q = self.museum.getSearchUrlBase()
@@ -74,26 +74,13 @@ class Query:
                 data=objectPayload
                 )
             objectJsonResponse = objectResponse.json()
-            resultSet.addItem(ArtObject(
+            resultSet.append(ArtObject(
                 objectJsonResponse['objectID'],
                 objectJsonResponse['title'],
                 objectJsonResponse['artistDisplayName'],
                 objectJsonResponse['primaryImageSmall']
             ))
         return resultSet
-
-class ObjectList:
-    def __init__(self):
-        self.items = []
-
-    def addItem(self, artObject):
-        self.items.append(artObject)
-
-    def delItem(self, artObject):
-        self.remote[ArtObject]
-
-    def saveItem(self, artObject):
-        artObject.save()
 
 class ArtObject:
     def __init__(self, objectId, title, artist, imageUrl):
@@ -135,11 +122,11 @@ class Database:
 
     def getFavorites(self, user):
         logging.debug("Checking for persisted favorites")
-        resultSet = ObjectList()
+        resultSet = []
         self.dbCursor.execute("SELECT objectId, title, artist, imageUrl from zeronormal where user=?;", (user.getName(),))
         rows = self.dbCursor.fetchall()
         for row in rows:
-            resultSet.addItem(ArtObject(row[0], row[1], row[2], row[3]))
+            resultSet.append(ArtObject(row[0], row[1], row[2], row[3]))
         return resultSet
 
     def __del__(self):
@@ -181,12 +168,12 @@ def main():
 
     # Run the query (and additionaly query for details) and return an ObjectList
     response = query.runQuery()
-    user.favorites.addItem(response.items[0])
+    user.favorites.append(response[0])
     user.saveFavorites()
 
     # Instantiate a Display object and show a favorite    
     window = Display()
-    window.show(user.favorites.items.pop().getImageUrl())
+    window.show(user.favorites.pop().getImageUrl())
 
 if __name__ == "__main__":
     main()
