@@ -1,22 +1,38 @@
 # Author: Nathan Tisdale
-# Purpose: proof of concept 'curator' app leveraging Met Museam api
+# Purpose: proof of concept 'curator' app leveraging Met Museum api
 
+import logging # used for logging
 import requests # used for rest
 from urllib.parse import urlencode  #used to convert dictionary to rest parameters
 from urllib.request import urlopen # used in retrieving image
 import sqlite3 # used for local cache of data
-import io  
+import io # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 import tkinter as tk # used for gui
 
+DB_PATH = "curator.db"
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 class User:
     def __init__(self, name):
         self.name = name
         self.favorites = ObjectList()
+        self.loadFavorites()
+        logging.debug(("created user: " + self.name + " with " + str(len(self.favorites.items)) + " items"))
 
     def getName(self):
         return self.name
+
+    def loadFavorites(self):
+        db = Database(DB_PATH)
+        self.favorites = db.getFavorites(self)
+        if self.favorites == None:
+            self.favorites = ObjectList()
+        del db
+
+    def saveFavorites(self):
+        for artObject in self.favorites.items:
+            artObject.save(self)
 
 class Museum:
     def __init__(self, name, searchUrlBase, objectUrlBase):
@@ -58,10 +74,6 @@ class Query:
                 data=objectPayload
                 )
             objectJsonResponse = objectResponse.json()
-            # print(objectJsonResponse['objectID'])
-            # print(objectJsonResponse['title'])
-            # print(objectJsonResponse['artistDisplayName'])
-            # print(objectJsonResponse['primaryImageSmall'])
             resultSet.addItem(ArtObject(
                 objectJsonResponse['objectID'],
                 objectJsonResponse['title'],
@@ -79,6 +91,9 @@ class ObjectList:
 
     def delItem(self, artObject):
         self.remote[ArtObject]
+
+    def saveItem(self, artObject):
+        artObject.save()
 
 class ArtObject:
     def __init__(self, objectId, title, artist, imageUrl):
@@ -99,19 +114,37 @@ class ArtObject:
     def getImageUrl(self):
         return self.imageUrl
 
+    def save(self, user):
+        db = Database(DB_PATH)
+        db.insertArtObject(user, self)
+        del db
+
 class Database:
     def __init__(self, dbPath):
         self.dbPath = dbPath
         self.dbConnect = sqlite3.connect(self.dbPath)
         self.dbCursor = self.dbConnect.cursor()
-        self.dbCursor.execute('''CREATE TABLE zeronormal (user text, objectId text, title text, artist text, imageUrl text)''')
+        self.dbCursor.execute('''CREATE TABLE IF NOT EXISTS zeronormal (user text, objectId text, title text, artist text, imageUrl text, PRIMARY KEY (user, objectId))''')
+        self.dbConnect.commit()
+        logging.debug("Database object created successfully")
 
     def insertArtObject(self, user, artObject):
-        self.dbCursor.execute('''INSERT INTO zeronormal (user, objectId, title, artist, imageUrl) VALUES (?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getImageUrl(),))
+        logging.debug("Peristing favorites")
+        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, imageUrl) VALUES (?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getImageUrl(),))
+        self.dbConnect.commit()
 
-    def getArtObjectUrls(self, user):
-        self.dbCursor.execute("SELECT imageUrl from zeronormal where user=? limit 1", (user.getName(),))
-        return self.dbCursor.fetchone()
+    def getFavorites(self, user):
+        logging.debug("Checking for persisted favorites")
+        resultSet = ObjectList()
+        self.dbCursor.execute("SELECT objectId, title, artist, imageUrl from zeronormal where user=?;", (user.getName(),))
+        rows = self.dbCursor.fetchall()
+        for row in rows:
+            resultSet.addItem(ArtObject(row[0], row[1], row[2], row[3]))
+        return resultSet
+
+    def __del__(self):
+        self.dbConnect.close
+        logging.debug("Releasing Database resource")    
     
 class Display():
     def __init__(self):
@@ -130,38 +163,30 @@ class Display():
 
 
 def main():
-    # Create db in memory for proof of concept
-    db = Database(":memory:")
     # Create an instance of a User
-    user = User("Patron2021")
-    # Create an instance of Museum based on New York Metropolitan Museaum API
+    user = User("guest")
+    
+    # Create an instance of Museum based on New York Metropolitan Museum API
     museum = Museum(
         name = "Metropolitan Museum", 
         searchUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/search?",
         objectUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
     )
-    # Create an instance of a Query using with seveal parameters
+
+    # Create an instance of a Query using with several parameters
     query = Query(museum)
     query.setParameter("isOnView", "true")
     query.setParameter("title", "The Laundress")
     query.setParameter("q", "Daumier")
-    # Run the query and itterate thorugh the results 
-    #   more specifically, runQuery will return results of subqueries
-    #   based on ids returned with the above parameters
+
+    # Run the query (and additinaly query for details) and return an ObjectList
     response = query.runQuery()
-    for item in response.items:
-        # insert each itme into db as if favorited
-        db.insertArtObject(user, item)
-        #print("Saved " + item.getTitle() + " to db in memory")
-    
-    cachedUrl = db.getArtObjectUrls(user)
-    
+    user.favorites.addItem(response.items[0])
+    user.saveFavorites()
+
+    # Instatiate a Display object and show a favorite    
     window = Display()
-    window.show(cachedUrl[0])
-
-    
-    
-
+    window.show(user.favorites.items.pop().getImageUrl())
 
 if __name__ == "__main__":
     main()
