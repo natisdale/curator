@@ -179,12 +179,12 @@ def main():
     query.setParameter("title", "The Laundress")
     query.setParameter("q", "Daumier")
 
-    # Run the query (and additinaly query for details) and return an ObjectList
+    # Run the query (and additionaly query for details) and return an ObjectList
     response = query.runQuery()
     user.favorites.addItem(response.items[0])
     user.saveFavorites()
 
-    # Instatiate a Display object and show a favorite    
+    # Instantiate a Display object and show a favorite    
     window = Display()
     window.show(user.favorites.items.pop().getImageUrl())
 
