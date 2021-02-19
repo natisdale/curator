@@ -46,6 +46,10 @@ class Museum:
     def getObjectUrlBase(self):
         return self.objectUrlBase
 
+    def isValidParameter(key, value):
+        #TODO: perform validation based on the Open Access API documentation
+        return true
+
 class Query:
     def __init__(self, museum):
         self.parameters = {}
