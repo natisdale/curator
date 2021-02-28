@@ -8,7 +8,10 @@ from urllib.request import urlopen # used in retrieving image
 import sqlite3 # used for local cache of data
 import io # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
-import tkinter as tk # used for gui
+#GUI
+from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BooleanVar, DoubleVar, IntVar, StringVar
+from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Spinbox, Style # this overrides older controls in tkinter with newer tkk versions
+
 
 DB_PATH = "curator.db"
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
@@ -39,6 +42,30 @@ class Museum:
         self.name = name
         self.searchUrlBase = searchUrlBase
         self.objectUrlBase = objectUrlBase
+        # TODO retrieve departments using rest and store in db
+        self.departments = {
+            "American Decorative Arts" : 1,
+            "Ancient Near Eastern Art" : 3,
+            "Arms and Armor" : 4,
+            "Arts of Africa, Oceania, and the Americas" : 5,
+            "Asian Art" : 6,
+            "The Cloisters" : 7,
+            "The Costume Institute" : 8,
+            "Drawings and Prints" : 9,
+            "Egyptian Art" : 10,
+            "European Paintings" : 11,
+            "European Sculpture and Decorative Arts" : 12,
+            "Greek and Roman Art" : 13,
+            "Islamic Art" : 14,
+            "The Robert Lehman Collection" : 15,
+            "The Libraries" : 16,
+            "Medieval Art" : 17,
+            "Musical Instruments" : 18,
+            "Photographs" : 19,
+            "Modern Art" : 21,
+        }
+        self._geoLocations = [ "Europe", "France", "Paris", "China", "New York" ]
+        self._mediums = [ "Ceramics", "Furniture", "Paintings", "Sculpture", "Textiles" ]
 
     def getSearchUrlBase(self):
         return self.searchUrlBase
@@ -46,9 +73,27 @@ class Museum:
     def getObjectUrlBase(self):
         return self.objectUrlBase
 
-    def isValidParameter(key, value):
+    def isValidParameter(self, key, value):
         #TODO: perform validation based on the Open Access API documentation
         return true
+
+    def getDepartmentId(self, departmentName):
+        # adapted from https://stackoverflow.com/questions/8023306/get-key-by-value-in-dictionary
+        for name,id in self.departments.items():
+            if name == departmentName:
+                return id
+        # return 0 if department not found
+        return 0
+    
+    def getDepartmentList(self):
+        return list(self.departments.keys())
+
+    def getGeoLocations(self):
+        return self._geoLocations
+
+    def getMediums(self):
+        return self._mediums
+        
 
 class Query:
     def __init__(self, museum):
@@ -140,31 +185,94 @@ class Database:
         self.dbConnect.close
         logging.debug("Releasing Database resource")    
     
-class Window():
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("Met Museum Curator")
+class CuratorApp:
+    def __init__(self, root):
+        # Create an instance of Museum based on New York Metropolitan Museum API
+        museum = Museum(
+            name = "Metropolitan Museum", 
+            searchUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/search?",
+            objectUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
+        )
+        q = Query(museum)
 
+        self.department = StringVar()
+        self.mediumValue = StringVar()
+        self.geoLocationValue = StringVar()
+        self.hasImageValue = IntVar()#.set(value=1)
+        self.isTitleSearchValue = IntVar()#.set(value=1)
+        self.isHighlightValue = IntVar()#.set(value=1)
+        self.isOnViewValue = IntVar()#.set(value=1)
+        self.beginYearValue = StringVar()
+        self.endYearValue = StringVar()
+        
+        #controlFrame = Frame(root)
+        #artFrame = Frame(root)
+        
+        # Create controls
+        self.museum = Label(root, text='Museum')
+        self.museumSelector = Spinbox(root, values=["New York Met Museum"])
+        self.search = Button(root, text='Search')
+        self.query = Entry(root)
+        self.isTitleSearch = Checkbutton(root, variable=self.isTitleSearchValue, onvalue=1, offvalue=0, text='Search in Title')
+        self.dept = Label(root, text='Department')
+        self.departmentSelector = Spinbox(root, values=museum.getDepartmentList(), textvariable=self.department, wrap=False)
+        self.med = Label(root, text = 'Medium')
+        self.mediumSelector = Spinbox(root, values=museum.getMediums(), textvariable=self.mediumValue, wrap=False)
+        self.geo = Label(root, text = 'Geographic Location')
+        self.geoLocationSelector = Spinbox(root, values=museum.getGeoLocations(), textvariable=self.geoLocationValue, wrap=False)
+        self.hasImage = Checkbutton(root, variable=self.hasImageValue, onvalue = 1, offvalue = 0, text = 'Has Image')
+        self.isHighlight = Checkbutton(root, variable=self.isHighlightValue, onvalue = 1, offvalue = 0, text = 'Is Highlight')
+        self.isOnView = Checkbutton(root, variable=self.isOnViewValue, text = 'On View')
+        self.firstYear = Label(root, text='Year Range Start')
+        self.beginYear = Spinbox(root, from_=-4000, to=2021, textvariable=self.beginYearValue, wrap=False )
+        self.lastYear = Label(root, text='Year Range Finish')
+        self.endYear = Spinbox(root, from_=-4000, to=2021, textvariable=self.beginYearValue, wrap=False )
+        self.objectImage = Label(root, text='<image placeholder>')
+
+        # Place controls
+        self.museum.pack()
+        self.museumSelector.pack()
+        self.search.pack()
+        self.query.pack()
+        self.isTitleSearch.pack()
+        self.dept.pack()
+        self.departmentSelector.pack()
+        self.med.pack()
+        self.mediumSelector.pack()
+        self.hasImage.pack()
+        self.isHighlight.pack()
+        self.isOnView.pack()
+        self.beginYear.pack()
+        self.beginYear.pack()
+        self.lastYear.pack()
+        self.endYear.pack()
+        self.objectImage.pack()
+        
+        
+
+      
     def show(self, artObject):
+        
         # adapted from https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
         openedUrl = urlopen(artObject.getImageUrl())
         objectImage = io.BytesIO(openedUrl.read())
         pilImage = Image.open(objectImage)
         tkImage = ImageTk.PhotoImage(pilImage)
-        label = tk.Label(self.root, image=tkImage)
-        label.pack(padx=5, pady=5)
-        self.root.mainloop()
+        label = Label(root, image=tkImage)
+        label.grid(row=1, column=3)
+        
 
 def main():
+    root = Tk()
+    root.title="Curator"
+    app = CuratorApp(root)
+    root.mainloop()
+
+""" 
     # Create an instance of a User
     user = User("guest")
     
-    # Create an instance of Museum based on New York Metropolitan Museum API
-    museum = Museum(
-        name = "Metropolitan Museum", 
-        searchUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/search?",
-        objectUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
-    )
+    
 
     # Create an instance of a Query using with several parameters
     query = Query(museum)
@@ -180,6 +288,6 @@ def main():
     # Instantiate a Display object and show a favorite    
     window = Window()
     window.show(user.favorites.pop())
-
+ """
 if __name__ == "__main__":
     main()
