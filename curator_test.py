@@ -49,4 +49,3 @@ class TestClass:
         assert len(response) > 0
         user.favorites.append(response[0])
         assert user.favorites[0].getTitle() == "The Laundress"
- 

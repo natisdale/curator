@@ -10,11 +10,11 @@ import io # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 #GUI
 from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BooleanVar, DoubleVar, IntVar, StringVar
-from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Spinbox, Style # this overrides older controls in tkinter with newer tkk versions
+from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Scale, Spinbox, Style # this overrides older controls in tkinter with newer tkk versions
 
 
 DB_PATH = "curator.db"
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class User:
     def __init__(self, name):
@@ -65,7 +65,7 @@ class Museum:
             "Modern Art" : 21,
         }
         self._geoLocations = [ "Europe", "France", "Paris", "China", "New York" ]
-        self._mediums = [ "Ceramics", "Furniture", "Paintings", "Sculpture", "Textiles" ]
+        self._classifications = [ "Ceramics", "Furniture", "Paintings", "Sculpture", "Textiles" ]
 
     def getSearchUrlBase(self):
         return self.searchUrlBase
@@ -91,8 +91,8 @@ class Museum:
     def getGeoLocations(self):
         return self._geoLocations
 
-    def getMediums(self):
-        return self._mediums
+    def getClassifications(self):
+        return self._classifications
         
 
 class Query:
@@ -103,6 +103,7 @@ class Query:
         self.resultSet = []
 
     def setParameter(self, parameterName, parameterValue):
+        logging.debug("Setting Paramater " + parameterName + ":" + parameterValue)
         self.parameters[parameterName] = parameterValue
 
     def unsetParameter(parameterName):
@@ -114,8 +115,11 @@ class Query:
         queryHeaders= {}
         q = self.museum.getSearchUrlBase()
         q = q + urlencode(self.parameters)
+        logging.debug(q)
         response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
         jsonResponse = response.json()
+        logging.debug("Rest query reseived " + str(len(jsonResponse)) + " matches")
+        logging.debug(str(jsonResponse))
         for id in jsonResponse['objectIDs']:
             objectHeaders = {}
             objectPayload = {}
@@ -188,67 +192,109 @@ class Database:
 class CuratorApp:
     def __init__(self, root):
         # Create an instance of Museum based on New York Metropolitan Museum API
-        museum = Museum(
+        self.museum = Museum(
             name = "Metropolitan Museum", 
             searchUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/search?",
             objectUrlBase = "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
-        q = Query(museum)
+        self.queryObject = Query(self.museum)
 
         self.department = StringVar()
-        self.mediumValue = StringVar()
+        self.classificationValue = StringVar()
         self.geoLocationValue = StringVar()
-        self.hasImageValue = IntVar()#.set(value=1)
-        self.isTitleSearchValue = IntVar()#.set(value=1)
-        self.isHighlightValue = IntVar()#.set(value=1)
-        self.isOnViewValue = IntVar()#.set(value=1)
-        self.beginYearValue = StringVar()
-        self.endYearValue = StringVar()
+        self.hasImageValue = IntVar()
+        self.isTitleSearchValue = IntVar()
+        self.isHighlightValue = IntVar()
+        self.isOnViewValue = IntVar()
+        self.dateBeginValue = StringVar()
+        self.dateEndValue = StringVar()
         
         #controlFrame = Frame(root)
         #artFrame = Frame(root)
         
         # Create controls
-        self.museum = Label(root, text='Museum')
+        self.institution = Label(root, text='Museum')
         self.museumSelector = Spinbox(root, values=["New York Met Museum"])
-        self.search = Button(root, text='Search')
+        self.museumSelector.set("New York Met Museum")
+        self.search = Button(root, text='Search', command=self.runSearch)
+        self.keyWordsOrTitle = Label(root, text="Title or Keywoards")
         self.query = Entry(root)
+        self.query.insert(0,"The Laundress")
         self.isTitleSearch = Checkbutton(root, variable=self.isTitleSearchValue, onvalue=1, offvalue=0, text='Search in Title')
+        self.isTitleSearchValue.set(1)
         self.dept = Label(root, text='Department')
-        self.departmentSelector = Spinbox(root, values=museum.getDepartmentList(), textvariable=self.department, wrap=False)
-        self.med = Label(root, text = 'Medium')
-        self.mediumSelector = Spinbox(root, values=museum.getMediums(), textvariable=self.mediumValue, wrap=False)
+        self.departmentSelector = Spinbox(root, values=lambda: self.museum.getDepartmentList(), textvariable=self.department, wrap=False)
+        self.departmentSelector.set("European Paintings")
+        self.classification = Label(root, text = 'Classification')
+        self.classificationSelector = Spinbox(root, values=lambda: self.museum.getClassifications(), textvariable=self.classificationValue, wrap=False)
+        self.classificationSelector.set("Paintings")
         self.geo = Label(root, text = 'Geographic Location')
-        self.geoLocationSelector = Spinbox(root, values=museum.getGeoLocations(), textvariable=self.geoLocationValue, wrap=False)
+        self.geoLocationSelector = Spinbox(root, values=lambda: self.museum.getGeoLocations(), textvariable=self.geoLocationValue, wrap=False)
         self.hasImage = Checkbutton(root, variable=self.hasImageValue, onvalue = 1, offvalue = 0, text = 'Has Image')
+        self.hasImageValue.set(1)
+        self.hasImage.configure(state='disabled')
         self.isHighlight = Checkbutton(root, variable=self.isHighlightValue, onvalue = 1, offvalue = 0, text = 'Is Highlight')
+        self.isHighlightValue.set(0)
         self.isOnView = Checkbutton(root, variable=self.isOnViewValue, text = 'On View')
-        self.firstYear = Label(root, text='Year Range Start')
-        self.beginYear = Spinbox(root, from_=-4000, to=2021, textvariable=self.beginYearValue, wrap=False )
-        self.lastYear = Label(root, text='Year Range Finish')
-        self.endYear = Spinbox(root, from_=-4000, to=2021, textvariable=self.beginYearValue, wrap=False )
+        self.isOnViewValue.set(1)
+        self.yearBegin = Label(root, text='Year Range Start')
+        self.dateBegin = Spinbox(root,from_=-4000, to=2021,textvariable=self.dateBeginValue,)
+        self.dateBegin.set(-2000)
+        self.yearEnd = Label(root, text='Year Range Finish')
+        self.dateEnd = Spinbox(root, from_=-4000, to=2021, textvariable=self.dateEndValue, wrap=False )
+        self.dateEnd.set(2021)
         self.objectImage = Label(root, text='<image placeholder>')
 
         # Place controls
-        self.museum.pack()
+        self.institution.pack()
         self.museumSelector.pack()
-        self.search.pack()
+        self.keyWordsOrTitle.pack()
         self.query.pack()
         self.isTitleSearch.pack()
         self.dept.pack()
         self.departmentSelector.pack()
-        self.med.pack()
-        self.mediumSelector.pack()
+        self.classification.pack()
+        self.classificationSelector.pack()
         self.hasImage.pack()
         self.isHighlight.pack()
         self.isOnView.pack()
-        self.beginYear.pack()
-        self.beginYear.pack()
-        self.lastYear.pack()
-        self.endYear.pack()
+        self.yearBegin.pack()
+        self.dateBegin.pack()
+        self.yearEnd.pack()
+        self.dateEnd.pack()
+        self.search.pack()
         self.objectImage.pack()
         
         
+    def buildQuery(self):
+        # https://collectionapi.metmuseum.org/public/collection/v1/search?title=true&classification=PaintingsdepartmentId=11&isOnView=true&hasImages=true&isHighlight=false$dateBegin=-2000&dateEnd=2021&q=%22The%20Laundress%22
+        if self.isTitleSearchValue.get() == 1:
+            self.queryObject.setParameter("title", "true")
+        else:
+            self.queryObject.setParameter("title", "false")
+        self.queryObject.setParameter("classification", self.classificationValue.get())
+        self.queryObject.setParameter("departmentId", str(self.museum.getDepartmentId(self.departmentSelector.get())))
+        if self.isOnViewValue.get() == 1:
+            self.queryObject.setParameter("isOnView", "true")
+        else:
+            self.queryObject.setParameter("isOnView", "false")
+        if self.hasImageValue.get() == 1:
+            self.queryObject.setParameter("hasImages", "true")
+        else:
+            self.queryObject.setParameter("hasImages", "false")
+        if self.isHighlightValue.get() == 1:
+            self.queryObject.setParameter("isHighlight", "true")
+        else:
+            self.queryObject.setParameter("isHighlight", "false")
+        self.queryObject.setParameter("dateBegin", self.dateBeginValue.get())
+        self.queryObject.setParameter("dateEnd", self.dateEndValue.get())
+        self.queryObject.setParameter("q", self.query.get())
+
+
+    def runSearch(self):
+        self.buildQuery()
+        resultSet = self.queryObject.runQuery()
+        self.objectImage.config(text=resultSet[0].imageUrl)
 
       
     def show(self, artObject):
