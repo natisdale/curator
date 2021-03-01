@@ -250,6 +250,7 @@ class CuratorApp:
         # resultsFrame widgets
         self.resultsTree = Treeview(self.resultsFrame, height=200)
         self.resultsTree.config(selectmode='browse') # Only allow selection of single item
+        self.resultsTree.bind('<<TreeviewSelect>>', self.showByUrl)
         
         # imageFrame widgets
         self.artObjectImage = Label(self.imageFrame, text='<image placeholder>')
@@ -323,24 +324,36 @@ class CuratorApp:
             position += 1
 
 
+    def showByUrl(self, event):
+        for i in self.resultsTree.selection():
+            logging.debug(i)
+            #self.artObjectImage.config(text=i)
+            self.openedUrl = urlopen(i)
+            self.objectImage = io.BytesIO(self.openedUrl.read())
+            self.pilImage = Image.open(self.objectImage)
+            self.tkImage = ImageTk.PhotoImage(self.pilImage)
+            self.artObjectImage.destroy()
+            self.artObjectImage = Label(self.imageFrame, text='', image=self.tkImage)
+            self.artObjectImage.pack(fill=BOTH, expand=True)
+
+
     def show(self, artObject):
         # adapted from https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
         logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
-        openedUrl = urlopen(artObject.getImageUrl())
-        objectImage = io.BytesIO(openedUrl.read())
-        pilImage = Image.open(objectImage)
-        tkImage = ImageTk.PhotoImage(pilImage)
+        self.openedUrl = urlopen(artObject.getImageUrl())
+        self.objectImage = io.BytesIO(self.openedUrl.read())
+        self.pilImage = Image.open(self.objectImage)
+        self.tkImage = ImageTk.PhotoImage(self.pilImage)
         #label = Label(root, image=tkImage)
-        self.artObjectImage.config(image=tkImage)
+        self.artObjectImage.config(image=self.tkImage)
         #label.grid(row=1, column=3)
-        
 
         
 
 def main():
     root = Tk()
     root.title="Curator"
-    root.geometry("800x400+10+10")
+    root.geometry("1100x700+10+10")
     app = CuratorApp(root)
     root.mainloop()
 
