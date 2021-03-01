@@ -9,8 +9,8 @@ import sqlite3 # used for local cache of data
 import io # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 #GUI
-from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BooleanVar, DoubleVar, IntVar, StringVar
-from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Scale, Spinbox, Style # this overrides older controls in tkinter with newer tkk versions
+from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BOTH, HORIZONTAL, SUNKEN, X, Y, BooleanVar, DoubleVar, IntVar, StringVar
+from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, Scale, Spinbox, Style, Treeview # this overrides older controls in tkinter with newer tkk versions
 
 
 DB_PATH = "curator.db"
@@ -209,61 +209,78 @@ class CuratorApp:
         self.dateBeginValue = StringVar()
         self.dateEndValue = StringVar()
         
-        #controlFrame = Frame(root)
-        #artFrame = Frame(root)
+        self.window = Panedwindow(root, orient = HORIZONTAL)
+        
+        self.controlFrame = Panedwindow(root, width=180, height=400)
+        self.resultsFrame = Panedwindow(root, width=600, height=400)
+        self.imageFrame = Panedwindow(root, width=600, height=400)
         
         # Create controls
-        self.institution = Label(root, text='Museum')
-        self.museumSelector = Spinbox(root, values=["New York Met Museum"])
+        self.institution = Label(self.controlFrame, text='Museum')
+        self.museumSelector = Spinbox(self.controlFrame, values=["New York Met Museum"])
         self.museumSelector.set("New York Met Museum")
-        self.search = Button(root, text='Search', command=self.runSearch)
-        self.keyWordsOrTitle = Label(root, text="Title or Keywoards")
-        self.query = Entry(root)
+        self.search = Button(self.controlFrame, text='Search', command=self.runSearch)
+        self.keyWordsOrTitle = Label(self.controlFrame, text="Title or Keywoards")
+        self.query = Entry(self.controlFrame)
         self.query.insert(0,"The Laundress")
-        self.isTitleSearch = Checkbutton(root, variable=self.isTitleSearchValue, onvalue=1, offvalue=0, text='Search in Title')
+        self.isTitleSearch = Checkbutton(self.controlFrame, variable=self.isTitleSearchValue, onvalue=1, offvalue=0, text='Search in Title')
         self.isTitleSearchValue.set(1)
-        self.dept = Label(root, text='Department')
-        self.departmentSelector = Spinbox(root, values=lambda: self.museum.getDepartmentList(), textvariable=self.department, wrap=False)
+        self.dept = Label(self.controlFrame, text='Department')
+        self.departmentSelector = Spinbox(self.controlFrame, values=lambda: self.museum.getDepartmentList(), textvariable=self.department, wrap=False)
         self.departmentSelector.set("European Paintings")
-        self.classification = Label(root, text = 'Classification')
-        self.classificationSelector = Spinbox(root, values=lambda: self.museum.getClassifications(), textvariable=self.classificationValue, wrap=False)
+        self.classification = Label(self.controlFrame, text = 'Classification')
+        self.classificationSelector = Spinbox(self.controlFrame, values=lambda: self.museum.getClassifications(), textvariable=self.classificationValue, wrap=False)
         self.classificationSelector.set("Paintings")
         self.geo = Label(root, text = 'Geographic Location')
-        self.geoLocationSelector = Spinbox(root, values=lambda: self.museum.getGeoLocations(), textvariable=self.geoLocationValue, wrap=False)
-        self.hasImage = Checkbutton(root, variable=self.hasImageValue, onvalue = 1, offvalue = 0, text = 'Has Image')
+        self.geoLocationSelector = Spinbox(self.controlFrame, values=lambda: self.museum.getGeoLocations(), textvariable=self.geoLocationValue, wrap=False)
+        self.hasImage = Checkbutton(self.controlFrame, variable=self.hasImageValue, onvalue = 1, offvalue = 0, text = 'Has Image')
         self.hasImageValue.set(1)
         self.hasImage.configure(state='disabled')
-        self.isHighlight = Checkbutton(root, variable=self.isHighlightValue, onvalue = 1, offvalue = 0, text = 'Is Highlight')
+        self.isHighlight = Checkbutton(self.controlFrame, variable=self.isHighlightValue, onvalue = 1, offvalue = 0, text = 'Is Highlight')
         self.isHighlightValue.set(0)
-        self.isOnView = Checkbutton(root, variable=self.isOnViewValue, text = 'On View')
+        self.isOnView = Checkbutton(self.controlFrame, variable=self.isOnViewValue, text = 'On View')
         self.isOnViewValue.set(1)
-        self.yearBegin = Label(root, text='Year Range Start')
-        self.dateBegin = Spinbox(root,from_=-4000, to=2021,textvariable=self.dateBeginValue,)
+        self.yearBegin = Label(self.controlFrame, text='Year Range Start')
+        self.dateBegin = Spinbox(self.controlFrame,from_=-4000, to=2021,textvariable=self.dateBeginValue,)
         self.dateBegin.set(-2000)
-        self.yearEnd = Label(root, text='Year Range Finish')
-        self.dateEnd = Spinbox(root, from_=-4000, to=2021, textvariable=self.dateEndValue, wrap=False )
+        self.yearEnd = Label(self.controlFrame, text='Year Range Finish')
+        self.dateEnd = Spinbox(self.controlFrame, from_=-4000, to=2021, textvariable=self.dateEndValue, wrap=False )
         self.dateEnd.set(2021)
-        self.objectImage = Label(root, text='<image placeholder>')
+        
+        # resultsFrame widgets
+        self.resultsTree = Treeview(self.resultsFrame, height=200)
+        self.resultsTree.config(selectmode='browse') # Only allow selection of single item
+        
+        # imageFrame widgets
+        self.artObjectImage = Label(self.imageFrame, text='<image placeholder>')
 
         # Place controls
-        self.institution.pack()
-        self.museumSelector.pack()
-        self.keyWordsOrTitle.pack()
-        self.query.pack()
-        self.isTitleSearch.pack()
-        self.dept.pack()
-        self.departmentSelector.pack()
-        self.classification.pack()
-        self.classificationSelector.pack()
-        self.hasImage.pack()
-        self.isHighlight.pack()
-        self.isOnView.pack()
-        self.yearBegin.pack()
-        self.dateBegin.pack()
-        self.yearEnd.pack()
-        self.dateEnd.pack()
-        self.search.pack()
-        self.objectImage.pack()
+        self.window.pack(fill=BOTH, expand=True)
+        self.window.add(self.controlFrame, weight=1)
+        #self.controlFrame.pack(side=LEFT)
+        self.window.add(self.resultsFrame, weight=2)
+        #self.resultsFrame.pack(side=LEFT)
+        self.window.add(self.imageFrame, weight=4)
+        #self.imageFrame.pack(side=LEFT)
+        self.institution.pack(fill=X)
+        self.museumSelector.pack(fill=X)
+        self.keyWordsOrTitle.pack(fill=X)
+        self.query.pack(fill=X)
+        self.isTitleSearch.pack(fill=X)
+        self.dept.pack(fill=X)
+        self.departmentSelector.pack(fill=X)
+        self.classification.pack(fill=X)
+        self.classificationSelector.pack(fill=X)
+        self.hasImage.pack(fill=X)
+        self.isHighlight.pack(fill=X)
+        self.isOnView.pack(fill=X)
+        self.yearBegin.pack(fill=X)
+        self.dateBegin.pack(fill=X)
+        self.yearEnd.pack(fill=X)
+        self.dateEnd.pack(fill=X)
+        self.search.pack(fill=X)
+        self.resultsTree.pack(fill=BOTH, expand=True)
+        self.artObjectImage.pack(fill=BOTH, expand=True)
         
         
     def buildQuery(self):
@@ -292,48 +309,41 @@ class CuratorApp:
 
 
     def runSearch(self):
+        # reset adapated from:
+        # https://stackoverflow.com/questions/22812134/how-to-clear-an-entire-treeview-with-tkinter
+        for i in self.resultsTree.get_children():
+            self.resultsTree.delete(i)
         self.buildQuery()
         resultSet = self.queryObject.runQuery()
-        self.objectImage.config(text=resultSet[0].imageUrl)
+        position = 0
+        for artObject in resultSet:
+            if position == 0:
+                self.show(artObject)
+            self.resultsTree.insert('', position, artObject.imageUrl, text=artObject.title )
+            position += 1
 
-      
+
     def show(self, artObject):
-        
         # adapted from https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
+        logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
         openedUrl = urlopen(artObject.getImageUrl())
         objectImage = io.BytesIO(openedUrl.read())
         pilImage = Image.open(objectImage)
         tkImage = ImageTk.PhotoImage(pilImage)
-        label = Label(root, image=tkImage)
-        label.grid(row=1, column=3)
+        #label = Label(root, image=tkImage)
+        self.artObjectImage.config(image=tkImage)
+        #label.grid(row=1, column=3)
+        
+
         
 
 def main():
     root = Tk()
     root.title="Curator"
+    root.geometry("800x400+10+10")
     app = CuratorApp(root)
     root.mainloop()
 
-""" 
-    # Create an instance of a User
-    user = User("guest")
-    
-    
 
-    # Create an instance of a Query using with several parameters
-    query = Query(museum)
-    query.setParameter("isOnView", "true")
-    query.setParameter("title", "The Laundress")
-    query.setParameter("q", "Daumier")
-
-    # Run the query (and additionaly query for details) and return an ObjectList
-    response = query.runQuery()
-    user.favorites.append(response[0])
-    user.saveFavorites()
-
-    # Instantiate a Display object and show a favorite    
-    window = Window()
-    window.show(user.favorites.pop())
- """
 if __name__ == "__main__":
     main()
