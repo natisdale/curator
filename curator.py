@@ -75,7 +75,7 @@ class Museum:
 
     def isValidParameter(self, key, value):
         #TODO: perform validation based on the Open Access API documentation
-        return true
+        return True
 
     def getDepartmentId(self, departmentName):
         # adapted from https://stackoverflow.com/questions/8023306/get-key-by-value-in-dictionary
@@ -106,7 +106,7 @@ class Query:
         logging.debug("Setting Paramater " + parameterName + ":" + parameterValue)
         self.parameters[parameterName] = parameterValue
 
-    def unsetParameter(parameterName):
+    def unsetParameter(self, parameterName):
         del self.parameters[parameterName]
 
     def runQuery(self):
