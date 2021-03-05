@@ -18,32 +18,38 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class User:
     def __init__(self, name):
-        self.name = name
-        self.favorites = []
+        self._name = name
+        self._favorites = []
         self.loadFavorites()
-        logging.debug(("created user: " + self.name + " with " + str(len(self.favorites)) + " items"))
+        logging.debug(("created user: " + self._name + " with " + str(len(self._favorites)) + " items"))
 
     def getName(self):
-        return self.name
+        return self._name
 
     def loadFavorites(self):
-        db = Database(DB_PATH)
-        self.favorites = db.getFavorites(self)
-        if self.favorites == None:
-            self.favorites = []
-        del db
+        __db = Database(DB_PATH)
+        self._favorites = __db.getFavorites(self)
+        if self._favorites == None:
+            self._favorites = []
+        del __db
 
     def saveFavorites(self):
-        for artObject in self.favorites:
+        for artObject in self._favorites:
             artObject.save(self)
+
+    def getFavorites(self):
+        return self._favorites
+
+    def addFavorite(self, artObject):
+        self._favorites.append(artObject)
 
 class Museum:
     def __init__(self, name, searchUrlBase, objectUrlBase):
-        self.name = name
-        self.searchUrlBase = searchUrlBase
-        self.objectUrlBase = objectUrlBase
+        self._name = name
+        self._searchUrlBase = searchUrlBase
+        self._objectUrlBase = objectUrlBase
         # TODO retrieve departments using rest and store in db
-        self.departments = {
+        self._departments = {
             "American Decorative Arts" : 1,
             "Ancient Near Eastern Art" : 3,
             "Arms and Armor" : 4,
@@ -68,10 +74,10 @@ class Museum:
         self._classifications = [ "Ceramics", "Furniture", "Paintings", "Sculpture", "Textiles" ]
 
     def getSearchUrlBase(self):
-        return self.searchUrlBase
+        return self._searchUrlBase
 
     def getObjectUrlBase(self):
-        return self.objectUrlBase
+        return self._objectUrlBase
 
     def isValidParameter(self, key, value):
         #TODO: perform validation based on the Open Access API documentation
@@ -79,14 +85,14 @@ class Museum:
 
     def getDepartmentId(self, departmentName):
         # adapted from https://stackoverflow.com/questions/8023306/get-key-by-value-in-dictionary
-        for name,id in self.departments.items():
+        for name,id in self._departments.items():
             if name == departmentName:
                 return id
         # return 0 if department not found
         return 0
     
     def getDepartmentList(self):
-        return list(self.departments.keys())
+        return list(self._departments.keys())
 
     def getGeoLocations(self):
         return self._geoLocations
@@ -97,24 +103,24 @@ class Museum:
 
 class Query:
     def __init__(self, museum):
-        self.parameters = {}
-        self.museum = museum
+        self._parameters = {}
+        self._museum = museum
         self.setParameter("hasImage", "true")
         self.resultSet = []
 
     def setParameter(self, parameterName, parameterValue):
         logging.debug("Setting Paramater " + parameterName + ":" + parameterValue)
-        self.parameters[parameterName] = parameterValue
+        self._parameters[parameterName] = parameterValue
 
     def unsetParameter(self, parameterName):
-        del self.parameters[parameterName]
+        del self._parameters[parameterName]
 
     def runQuery(self):
         resultSet = []
         queryPayload = {}
         queryHeaders= {}
-        q = self.museum.getSearchUrlBase()
-        q = q + urlencode(self.parameters)
+        q = self._museum.getSearchUrlBase()
+        q = q + urlencode(self._parameters)
         logging.debug(q)
         response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
         jsonResponse = response.json()
@@ -125,7 +131,7 @@ class Query:
             objectPayload = {}
             objectResponse = requests.request(
                 "GET",
-                self.museum.getObjectUrlBase()+str(id),
+                self._museum.getObjectUrlBase()+str(id),
                 headers=objectHeaders,
                 data=objectPayload
                 )

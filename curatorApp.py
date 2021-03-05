@@ -15,9 +15,9 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 class CuratorApp:
     def __init__(self, root):
         self.museum = Museum(
-            name="Metropolitan Museum",
-            searchUrlBase="https://collectionapi.metmuseum.org/public/collection/v1/search?",
-            objectUrlBase="https://collectionapi.metmuseum.org/public/collection/v1/objects/"
+            "Metropolitan Museum",
+            "https://collectionapi.metmuseum.org/public/collection/v1/search?",
+            "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
         self.queryObject = Query(self.museum)
         self.department = StringVar()

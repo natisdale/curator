@@ -26,7 +26,7 @@ class TestClass:
     def testNewUser(self):
         user = curator.User(self.username)
         assert user.getName() == self.username
-        assert len(user.favorites) == 0
+        assert len(user.getFavorites()) == 0
         del user
 
  
@@ -47,5 +47,5 @@ class TestClass:
         query.setParameter("q", "The Laundress")
         response = query.runQuery()
         assert len(response) > 0
-        user.favorites.append(response[0])
-        assert user.favorites[0].getTitle() == "The Laundress"
+        user.addFavorite(response[0])
+        assert user.getFavorites().pop().getTitle() == "The Laundress"
