@@ -1,6 +1,6 @@
 # Curator
 
-This project combines my interest in art and technology.  As an art student I developed a great appreciation for visiting museums for an intimate look at works of art.  As a computer information systems student I wanted to explore how the New York Met Museums's Open Access API might be used in curating a sort of remote exhibition.
+This project combines my interest in art and technology.  As an art student I developed a great appreciation for visiting museums for an intimate look at works of art.  As a computer information systems student I wanted to explore how the New York Met Museums's [Open Access API](https://www.metmuseum.org/blogs/now-at-the-met/2018/met-collection-api) might be used in curating a sort of remote exhibition.
 
 ![Block Diagram](https://lucid.app/publicSegments/view/a0a86283-2144-4c98-81b4-93c183523ed8/image.jpeg "Block Diagram")
 
