@@ -23,3 +23,7 @@ The essential objects are:
 - Database for preserving lists
 - Window to display images
 - and of course, the Open Access API
+
+A prototype graphical interface written in Python using Tkinter is shown below.  The left panel contains controls for setting query parameters.  The middle shows the titles of objects returned by a search.  Selecting an item from the results list displays the main image for that art object in the pane on the right.
+
+![GUI Prototype](https://tisdale.info/images/curator-gui-dev.png "Tkinter based GUI Prototype")
