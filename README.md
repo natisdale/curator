@@ -1,4 +1,4 @@
-# Curator
+# Curator, an app for accessing the Met Museum collection
 
 This project combines my interest in art and technology.  As an art student I developed a great appreciation for visiting museums for an intimate look at works of art.  As a computer information systems student I wanted to explore how the New York Met Museum's [Open Access API](https://www.metmuseum.org/blogs/now-at-the-met/2018/met-collection-api) might be used in curating a sort of remote exhibition.
 
