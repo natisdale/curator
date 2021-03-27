@@ -9,3 +9,6 @@ install:
 # command to run tests
 script:
   - pytest
+# build notifications
+notifications:
+  slack: metmuseumcurator:Nqq0VS6ffy16tGtPhMm22PBL
