@@ -11,19 +11,17 @@ The three main use case actors would be art enthusiasts, students, and professio
 - Students would benefit form additional details and lists for their studies, whether for the studio or historical research
 - Art professors, and art historians are expected to build lists for sharing with classes or readers
 
-The domain for this project consists of the application and the Open Access API which provides access to the collection data.
-
-![Domain Diagram](https://lucid.app/publicSegments/view/467828ed-7adb-448a-9f8d-f3f09488d20a/image.jpeg "Domain Diagram")
+![Class Diagram](https://lucid.app/publicSegments/view/9aa52c83-e456-4047-a86d-9a34cc37eedf/image.jpeg? "Class Diagram")
 
 The essential objects are:
 - User, similar in nature to how Netflix profiles work
-- Museum, which provides context for the API
-- Query, which provides constructin and running of searches
+- Query, which provides construction and running of searches
+- Museum, which provides context for the API, including parameter validation
 - Art Objects created based on the returned meta-data
-- Database for preserving lists
+- Database for preserving lists (including title and url to image)
 - Window to display images
 - and of course, the Open Access API
 
-A prototype graphical interface written in Python using Tkinter is shown below.  The left panel contains controls for setting query parameters.  The middle pane shows the titles of objects returned by a search.  Selecting an item from the results list displays the main image for that art object in the pane on the right.
+The graphical interface written in Python using Tkinter is shown below.  The left panel contains controls for setting query parameters.  The middle pane shows the titles of objects returned by a search.  Selecting an item from the results list displays the main image for that art object in the pane on the right.
 
 ![GUI Prototype](https://tisdale.info/images/curator-gui-dev.png? "GUI Prototype")
