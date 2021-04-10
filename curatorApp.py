@@ -4,7 +4,7 @@ from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 # GUI
-from tkinter import Tk, BOTH, HORIZONTAL, X, IntVar, StringVar
+from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar
 from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview
 # Curator API
 from curator import Museum, Query
@@ -13,6 +13,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 
 class CuratorApp:
+    ''' GUI for Metropolitan Museum Open Access API '''
     def __init__(self, root):
         self.museum = Museum(
             "Metropolitan Museum",
@@ -20,8 +21,22 @@ class CuratorApp:
             "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
         self.queryObject = Query(self.museum)
-        self.department = StringVar()
+        
+        # Menu
+        menubar = Menu(root)
+        fileMenu = Menu(menubar)
+        fileMenu.add_command(label="Load Favorites")
+        fileMenu.add_command(label="Save Favorites")
+        fileMenu.add_separator()
+        fileMenu.add_command(label="Quit", command=root.quit)
+        menubar.add_cascade(label='Curator', menu=fileMenu)
+        helpMenu = Menu(menubar)
+        helpMenu.add_command(label="About")
+        menubar.add_cascade(label='Help', menu=helpMenu)
+        root.config(menu=menubar)
+
         # Variables for GUI control values
+        self.department = StringVar()
         self.classificationValue = StringVar()
         self.geoLocationValue = StringVar()
         self.hasImageValue = IntVar()
