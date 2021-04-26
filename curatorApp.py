@@ -224,7 +224,7 @@ class CuratorApp:
         for i in self.resultsTree.get_children():
             self.resultsTree.delete(i)
         self.buildQuery()
-        resultSet = self.queryObject.runQuery()
+        resultSet = self.queryObject.fetchArtObjects()  # runQuery()
         # Iterate through results, and display the image of the first object
         for position, artObject in enumerate(resultSet):
             if position == 0:
