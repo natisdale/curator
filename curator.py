@@ -126,6 +126,7 @@ class Query:
 
 
     def _fetchObjectIds(self):
+        logging.debug('_fetchObjectIds started')
         self.objectSet = []
         queryPayload = {}
         queryHeaders= {}
@@ -144,6 +145,7 @@ class Query:
 
 
     def _fetchArtObject(self, id):
+        logging.debug('_fetchArtObject started')
         objectHeaders = {}
         objectPayload = {}
         objectResponse = requests.request(
@@ -162,6 +164,7 @@ class Query:
         return(artObject)
 
     def fetchArtObjects(self):
+        logging.debug('fetArtObjects starting')
         self.resultSet = []
         self._fetchObjectIds()
         with ThreadPoolExecutor() as executor:
@@ -169,6 +172,13 @@ class Query:
             futures = [executor.submit(self._fetchArtObject, id) for id in self.objectSet]
         for f in futures:
             self.resultSet.append(f.result())
+        finishedToken = ArtObject(
+            'done',
+            'done',
+            'done',
+            'done'
+        )
+        self.resultSet.append(finishedToken)
         return self.resultSet
         
 

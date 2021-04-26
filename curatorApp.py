@@ -4,10 +4,14 @@ from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 # GUI
-from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar
+from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, END
 from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview
 # Curator API
 from curator import Museum, Query
+
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import queue
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
@@ -21,6 +25,11 @@ class CuratorApp:
             "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
         self.queryObject = Query(self.museum)
+        
+        self.executor = ThreadPoolExecutor()
+        self.artObjectQueue = queue.Queue()
+        self.treeLock = threading.Lock()
+        
         
         # Menu
         menubar = Menu(root)
@@ -216,6 +225,34 @@ class CuratorApp:
         self.queryObject.setParameter("dateEnd", self.dateEndValue.get())
         self.queryObject.setParameter("q", self.query.get())
 
+    
+    def queueArtObjects(self):
+        logging.debug('queueArtObjects thread running')
+        resultSet = self.queryObject.fetchArtObjects()
+        for artObject in resultSet:
+            logging.debug('queueArtObjects adding objects to queue')
+            self.artObjectQueue.put(artObject)
+        logging.debug('queueArtObjects finished queueing Art Objects')
+    
+    def dequeueArtObjects(self):
+        logging.debug('dequeueArtObjects thread running')
+        while True:
+            artObject = self.artObjectQueue.get()
+            logging.debug('dequeueArtObjects: ' + artObject.title)
+            if artObject.title == 'done':
+                logging.debug('dequeueArtjects done')
+                break
+            else:
+                logging.debug('dequeueArtObjects: inserting ' + artObject.title)
+                self.executor.submit(self.resultsTree.insert(
+                    '',
+                    END,
+                    artObject.imageUrl,
+                    text=artObject.title
+                ))
+        self.progressbar.stop()
+
+    
     # Runs the rest query based on the paramters selected in GUI
     def runSearch(self):
         self.progressbar.start()
@@ -224,19 +261,31 @@ class CuratorApp:
         for i in self.resultsTree.get_children():
             self.resultsTree.delete(i)
         self.buildQuery()
-        resultSet = self.queryObject.fetchArtObjects()  # runQuery()
-        # Iterate through results, and display the image of the first object
-        for position, artObject in enumerate(resultSet):
-            if position == 0:
-                self.show(artObject)
-            self.resultsTree.insert(
-                '',
-                position,
-                artObject.imageUrl,
-                text=artObject.title
-            )
-            position += 1
-        self.progressbar.stop()
+        self.executor.submit(self.queueArtObjects)
+        self.executor.submit(self.dequeueArtObjects)
+        
+
+    # Runs the rest query based on the paramters selected in GUI
+    # def runSearch(self):
+    #     self.progressbar.start()
+    #     # reset adapated from:
+    #     # https://stackoverflow.com/questions/22812134/how-to-clear-an-entire-treeview-with-tkinter
+    #     for i in self.resultsTree.get_children():
+    #         self.resultsTree.delete(i)
+    #     self.buildQuery()
+    #     resultSet = self.queryObject.fetchArtObjects()  # runQuery()
+    #     # Iterate through results, and display the image of the first object
+    #     for position, artObject in enumerate(resultSet):
+    #         if position == 0:
+    #             self.show(artObject)
+    #         self.resultsTree.insert(
+    #             '',
+    #             position,
+    #             artObject.imageUrl,
+    #             text=artObject.title
+    #         )
+    #         position += 1
+    #     self.progressbar.stop()
 
     # Retrieve and display the image of the item selected in the tree
     def showByUrl(self, event):
