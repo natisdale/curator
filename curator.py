@@ -195,7 +195,6 @@ class ArtObject:
 
 class Database:
     def __init__(self, dbPath):
-        print(init)
         self.dbPath = dbPath
         self.dbConnect = sqlite3.connect(self.dbPath)
         self.dbCursor = self.dbConnect.cursor()
