@@ -36,7 +36,7 @@ class met_csv:
 
         #fix this. this is inefficient
         my_col = self.df.Classification.unique().tolist()
-        for i in my_filters:
+        for i in filters:
             my_col = [str(item) for item in my_col if str(i) not in str(item)]
 
         self.unique_cols.update({"Classification": my_col})

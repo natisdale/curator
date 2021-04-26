@@ -8,6 +8,7 @@ from urllib.request import urlopen # used in retrieving image
 import sqlite3 # used for local cache of data
 import io # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
+import pandas # for parsing sql
 #GUI
 from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BOTH, HORIZONTAL, SUNKEN, X, Y, BooleanVar, DoubleVar, IntVar, StringVar
 from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, Scale, Spinbox, Style, Treeview # this overrides older controls in tkinter with newer tkk versions
@@ -101,9 +102,16 @@ class Museum:
         return self._classifications
 
     def get_classifications(self):
-    
+        print("getting classifications")
         conn=sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        cursor.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='classifications' ''')
+        if cursor.fetchone()[0]==1 :
+            print('Table exists.')
+            print("classifications")
+        else:
+            print("making classifications")
+            exec(open("parse_to_sql.py").read())
         query = ('''SELECT Classification FROM classifications;''')
         try:
             cursor.execute(query)
@@ -187,10 +195,13 @@ class ArtObject:
 
 class Database:
     def __init__(self, dbPath):
+        print(init)
         self.dbPath = dbPath
         self.dbConnect = sqlite3.connect(self.dbPath)
         self.dbCursor = self.dbConnect.cursor()
         self.dbCursor.execute('''CREATE TABLE IF NOT EXISTS zeronormal (user text, objectId text, title text, artist text, imageUrl text, PRIMARY KEY (user, objectId))''')
+        
+
         self.dbConnect.commit()
         logging.debug("Database object created successfully")
 
