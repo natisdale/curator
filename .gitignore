@@ -2,3 +2,4 @@ venv
 .vscode
 curator.db
 __pycache__/
+MetObjects.csv

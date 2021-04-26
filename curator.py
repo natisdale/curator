@@ -71,7 +71,7 @@ class Museum:
             "Modern Art" : 21,
         }
         self._geoLocations = [ "Europe", "France", "Paris", "China", "New York" ]
-        self._classifications = [ "Ceramics", "Furniture", "Paintings", "Sculpture", "Textiles" ]
+        self._classifications = self.get_classifications()
 
     def getSearchUrlBase(self):
         return self._searchUrlBase
@@ -99,6 +99,23 @@ class Museum:
 
     def getClassifications(self):
         return self._classifications
+
+    def get_classifications(self):
+    
+        conn=sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        query = ('''SELECT Classification FROM classifications;''')
+        try:
+            cursor.execute(query)
+            rows =cursor.fetchall()
+            temp = []
+            for i in rows:
+                temp.append(i[0])
+            conn.commit()
+            return temp
+        except NameError:
+            print(NameError)
+            return []
         
 
 class Query:
