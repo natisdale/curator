@@ -11,13 +11,10 @@ from PIL import Image, ImageTk  # used to handle images
 #GUI
 from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BOTH, HORIZONTAL, SUNKEN, X, Y, BooleanVar, DoubleVar, IntVar, StringVar
 from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, Scale, Spinbox, Style, Treeview # this overrides older controls in tkinter with newer tkk versions
-
-import threading
 from concurrent.futures import ThreadPoolExecutor
-import queue
 
 DB_PATH = "curator.db"
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 class User:
     def __init__(self, name):
@@ -112,10 +109,6 @@ class Query:
         self.objectSet = []
         self.resultSet = []
         self.state = 'new'
-        self._objectsLock = threading.Lock()
-        self._resultSetLock = threading.Lock()
-        self.idQueue = queue.Queue()
-        self.artObjectQueue = queue.Queue()
 
     def setParameter(self, parameterName, parameterValue):
         logging.debug("Setting Paramater " + parameterName + ":" + parameterValue)
@@ -139,7 +132,6 @@ class Query:
         logging.debug(str(jsonResponse))
         if jsonResponse['objectIDs']:
             for id in jsonResponse['objectIDs']:
-                #self.idQueue.put(id)
                 self.objectSet.append(id)
         return len(self.objectSet)
 
@@ -168,7 +160,6 @@ class Query:
         self.resultSet = []
         self._fetchObjectIds()
         with ThreadPoolExecutor() as executor:
-            #future = [executor.submit(self._fetchArtObject, id) for id in self.idQueue]
             futures = [executor.submit(self._fetchArtObject, id) for id in self.objectSet]
         for f in futures:
             self.resultSet.append(f.result())

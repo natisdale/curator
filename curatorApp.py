@@ -13,7 +13,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import queue
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 
 class CuratorApp:
@@ -28,8 +28,6 @@ class CuratorApp:
         
         self.executor = ThreadPoolExecutor()
         self.artObjectQueue = queue.Queue()
-        self.treeLock = threading.Lock()
-        
         
         # Menu
         menubar = Menu(root)
