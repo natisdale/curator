@@ -1,13 +1,14 @@
 import logging  # used for logging
+import json     # used for encoding/decoding favorites
 # Image processing
 from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 # GUI
-from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar
+from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, filedialog
 from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview
 # Curator API
-from curator import Museum, Query
+from curator import Museum, Query, User
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
@@ -21,12 +22,13 @@ class CuratorApp:
             "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
         self.queryObject = Query(self.museum)
+        self.user = User('curator')
         
         # Menu
         menubar = Menu(root)
         fileMenu = Menu(menubar)
-        fileMenu.add_command(label="Load Favorites")
-        fileMenu.add_command(label="Save Favorites")
+        fileMenu.add_command(label="Import Favorites", command=self.importFavorites)
+        fileMenu.add_command(label="Export Favorites", command=self.exportFavorites)
         fileMenu.add_separator()
         fileMenu.add_command(label="Quit", command=root.quit)
         menubar.add_cascade(label='Curator', menu=fileMenu)
@@ -184,6 +186,12 @@ class CuratorApp:
         self.resultsTree.pack(fill=BOTH, expand=True)
         self.artObjectImage.pack(fill=BOTH, expand=True)
 
+        # MM - Testing
+        self.user.devAdd()
+        self.listFavorites()
+        self.listFavorites()
+
+
     # Pass paramters from GUI to the Query object to build the query string
     def buildQuery(self):
         # Example of rest call for object search:
@@ -238,11 +246,16 @@ class CuratorApp:
             position += 1
         self.progressbar.stop()
 
+        # Reload favorites list
+        self.listFavorites()
+
     # Retrieve and display the image of the item selected in the tree
     def showByUrl(self, event):
         for i in self.resultsTree.selection():
+            if i == 'favorites':
+                continue
             logging.debug(i)
-            self.openedUrl = urlopen(i)
+            self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
             self.objectImage = io.BytesIO(self.openedUrl.read())
             self.pilImage = Image.open(self.objectImage)
             self.tkImage = ImageTk.PhotoImage(self.pilImage)
@@ -265,6 +278,79 @@ class CuratorApp:
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
 
+    def listFavorites(self):
+        # Remove existing "favorites" tree item
+        if (self.resultsTree.exists('favorites')): 
+            self.resultsTree.delete('favorites') 
+
+        favoritesSet = self.user.getFavorites()
+        
+        if len(favoritesSet) > 0:
+            favListItem = self.resultsTree.insert('', 'end', 'favorites', text='Favorites')
+
+            for position, artObject in enumerate(favoritesSet):
+                self.resultsTree.insert(
+                    favListItem,
+                    position,
+                    '_cur_fav_' + artObject.imageUrl,
+                    text=artObject.title
+                )
+                position += 1
+
+    def importFavorites(self):
+        logging.debug('Importing favorites...')
+        try:
+            file = filedialog.askopenfile(
+                mode="r", 
+                title='Import Favorites', 
+                filetypes=[('Curator Favorites', '*.curator')], 
+                defaultextension='.curator'
+            )
+
+            favorites = json.load(file)
+            for f in favorites:
+                self.addFavorite(ArtObject(
+                f['objectId'],
+                f['title'], 
+                f['title'], 
+                f['imageUrl'])
+            )
+            logging.debug(favorites)
+
+            file.close()
+        except TypeError as e:
+            logging.debug(f'Couldn\'t convert JSON favorites to obj. {str(e)}')
+        except Exception as e:
+            logging.debug(f'Something went wrong importing favorites. {str(e)}')
+        finally:
+            if file:
+                file.close()
+
+    def exportFavorites(self):
+        logging.debug('Exporting favorites...')
+        try:
+            file = filedialog.asksaveasfile(
+                mode='w', 
+                title='Export Favorites', 
+                filetypes=[('Curator Favorites', '*.curator')], 
+                defaultextension='.curator'
+            )
+            favorites = self.user.getFavorites()
+            json.dump(
+                favorites, 
+                file, 
+                default=lambda o: o.__dict__, 
+                sort_keys=True, 
+                indent=4
+            )
+            file.close()
+        except TypeError as e:
+            logging.debug(f'Couldn\'t convert favorites to JSON. {str(e)}')
+        except Exception as e:
+            logging.debug(f'Something went wrong exporting favorites. {str(e)}')
+        finally:
+            if file:
+                file.close()
 
 def main():
     root = Tk()

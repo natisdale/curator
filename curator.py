@@ -41,7 +41,32 @@ class User:
         return self._favorites
 
     def addFavorite(self, artObject):
-        self._favorites.append(artObject)
+        if not self.isFavorite(artObject):
+            logging.debug(f'Adding favorite with ID {artObject.objectId}')
+            self._favorites.append(artObject)
+        else:
+            logging.debug(f'Art object {artObject.objectId} is already a favorite')
+
+    def isFavorite(self, artObject):
+        for f in self._favorites:
+            if f.objectId == artObject.objectId:
+                return True
+        return False
+
+    def devAdd(self):
+        self.addFavorite(ArtObject(
+            '436139',
+            'Dancers Practicing at the Barre', 
+            'Edgar Degas', 
+            'https://images.metmuseum.org/CRDImages/ep/web-large/DT840.jpg')
+        )
+
+        self.addFavorite(ArtObject(
+            '436091',
+            'The Laundress', 
+            'Honoré Daumier', 
+            'https://images.metmuseum.org/CRDImages/ep/web-large/DT2141.jpg')
+        )
 
 class Museum:
     def __init__(self, name, searchUrlBase, objectUrlBase):
