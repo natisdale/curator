@@ -234,11 +234,13 @@ class CuratorApp:
         self.buildQuery()
         resultSet = self.queryObject.runQuery()
         # Iterate through results, and display the image of the first object
+        searchResults = self.resultsTree.insert('', 'end', 'searchResults', text='Search Results')
+        self.resultsTree.item("searchResults", open = True)
         for position, artObject in enumerate(resultSet):
             if position == 0:
                 self.show(artObject)
             self.resultsTree.insert(
-                '',
+                searchResults,
                 position,
                 artObject.imageUrl,
                 text=artObject.title
@@ -252,7 +254,7 @@ class CuratorApp:
     # Retrieve and display the image of the item selected in the tree
     def showByUrl(self, event):
         for i in self.resultsTree.selection():
-            if i == 'favorites':
+            if i == 'favorites' or i == 'searchResults':
                 continue
             logging.debug(i)
             self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
