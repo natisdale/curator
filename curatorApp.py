@@ -263,15 +263,125 @@ class CuratorApp:
             medium_val = ''.join(self.resultsTree.item(i, "value")[3])
             # logging.debug(self.resultsTree.item(i, "value")[2])
             self.artObjectDetails.destroy()
-            self.artObjectDetails = Label(
-            self.imageFrame,
-            text='Artist: ' + artist_value +
-                '\nDate: ' + date_value +
-                '\nNationality: ' + nationality_val +
-                '\nMedium: ' + medium_val
-            )
+            self.detailsCheck(artist_value, date_value, nationality_val, medium_val)
             self.artObjectDetails.pack(fill=BOTH, expand=True)
             self.artObjectImage.pack(fill=BOTH, expand=True)
+            
+    def detailsCheck(self, artist, date, nationality, medium): 
+        if artist:
+            if date:
+                if nationality:
+                    if medium: ## non are empty
+                        logging.debug("Non are empty")
+                        self.artObjectDetails = Label(
+                        self.imageFrame,
+                        text='Artist: ' + artist +
+                            '\nDate: ' + date +
+                            '\nNationality: ' + nationality +
+                            '\nMedium: ' + medium
+                        )
+                    else: ## artist, date, nation.
+                        logging.debug("Medium description empty")
+                        self.artObjectDetails = Label(
+                        self.imageFrame,
+                        text='Artist: ' + artist +
+                            '\nDate: ' + date +
+                            '\nNationality: ' + nationality
+                        )
+                elif medium: ## artist date medium
+                    logging.debug("Nationality description empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nDate: ' + date +
+                        '\nMedium: ' + medium
+                    )
+                else: ## artist date
+                    logging.debug("Nationality, Medium descriptions empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nDate: ' + date
+                    )
+            elif nationality:  
+                if medium: ## artist nation. medium
+                    logging.debug("Date description empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nNationality: ' + nationality +
+                        '\nMedium: ' + medium
+                    )
+                else: ##artist nation.
+                    logging.debug("Date, Medium descriptions empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nNationality: ' + nationality
+                    ) 
+            elif medium: # artist medium
+                logging.debug("Date, Nationality descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='Artist: ' + artist +
+                    '\nMedium: ' + medium
+                )
+            else: ## just artist
+                logging.debug("Date, Nationality, Medium descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='Artist: ' + artist
+                )
+        elif date:
+            if nationality:
+                if medium: ## date nation. medium
+                    logging.debug("Artist description empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='\nDate: ' + date +
+                        '\nNationality: ' + nationality +
+                        '\nMedium: ' + medium
+                    )
+                else:  ## date nation.
+                    logging.debug("Artist, Medium descriptions empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='\nDate: ' + date +
+                        '\nNationality: ' + nationality
+                    )
+            elif medium: ## date medium
+                logging.debug("Artist, Nationality descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nDate: ' + date +
+                    '\nMedium: ' + medium
+                )
+            else: ## just date
+                logging.debug("Artist, Nationality, Medium descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nDate: ' + date
+                )
+        elif nationality:
+            if medium: ## nation. medium
+                logging.debug("Artist, Date descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nNationality: ' + nationality +
+                    '\nMedium: ' + medium
+                )
+            else: ## just nationality
+                logging.debug("Artist, Date, Medium descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nNationality: ' + nationality
+                )
+        elif medium: ## just medium
+            logging.debug("Artist, Date, Nationality descriptions empty")
+            self.artObjectDetails = Label(
+            self.imageFrame,
+            text='\nMedium: ' + medium
+            )
 
     # Retrieve and display the image of the given ArtObject
     def show(self, artObject):
