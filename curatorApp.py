@@ -159,7 +159,10 @@ class CuratorApp:
             self.imageFrame,
             text='<image placeholder>'
         )
-
+        self.artObjectDetails = Label(
+            self.imageFrame,
+            text=''
+        )
         # Place controls
         self.window.pack(fill=BOTH, expand=True)
         self.window.add(self.controlFrame, weight=1)
@@ -185,6 +188,7 @@ class CuratorApp:
         self.progressbar.pack(fill=X)
         self.resultsTree.pack(fill=BOTH, expand=True)
         self.artObjectImage.pack(fill=BOTH, expand=True)
+        self.artObjectDetails.pack(fill=BOTH, expand=True)
 
         # MM - Testing
         self.user.devAdd()
@@ -243,7 +247,8 @@ class CuratorApp:
                 searchResults,
                 position,
                 artObject.imageUrl,
-                text=artObject.title
+                text=artObject.title,
+                values=[artObject.artist, artObject.date, artObject.nationality, artObject.medium]
             )
             position += 1
         self.progressbar.stop()
@@ -267,6 +272,20 @@ class CuratorApp:
                 text='',
                 image=self.tkImage
             )
+            artist_value = ''.join(self.resultsTree.item(i, "value")[0])
+            date_value = ''.join(self.resultsTree.item(i, "value")[1])
+            nationality_val = ''.join(self.resultsTree.item(i, "value")[2])
+            medium_val = ''.join(self.resultsTree.item(i, "value")[3])
+            # logging.debug(self.resultsTree.item(i, "value")[2])
+            self.artObjectDetails.destroy()
+            self.artObjectDetails = Label(
+            self.imageFrame,
+            text='Artist: ' + artist_value +
+                '\nDate: ' + date_value +
+                '\nNationality: ' + nationality_val +
+                '\nMedium: ' + medium_val
+            )
+            self.artObjectDetails.pack(fill=BOTH, expand=True)
             self.artObjectImage.pack(fill=BOTH, expand=True)
 
     # Retrieve and display the image of the given ArtObject
