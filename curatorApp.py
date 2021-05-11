@@ -4,12 +4,16 @@ from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 # GUI
-from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar
+from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, END
 from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview
 # Curator API
 from curator import Museum, Query
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import queue
+
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 
 class CuratorApp:
@@ -21,6 +25,9 @@ class CuratorApp:
             "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
         self.queryObject = Query(self.museum)
+        
+        self.executor = ThreadPoolExecutor()
+        self.artObjectQueue = queue.Queue()
         
         # Menu
         menubar = Menu(root)
@@ -158,6 +165,9 @@ class CuratorApp:
             text='<image placeholder>'
         )
 
+        # Updates image to WildCat Logo before controls are displayed
+        self.displayLogo()
+
         # Place controls
         self.window.pack(fill=BOTH, expand=True)
         self.window.add(self.controlFrame, weight=1)
@@ -184,8 +194,11 @@ class CuratorApp:
         self.resultsTree.pack(fill=BOTH, expand=True)
         self.artObjectImage.pack(fill=BOTH, expand=True)
 
-    # Pass paramters from GUI to the Query object to build the query string
+
     def buildQuery(self):
+        '''
+        Pass paramters from GUI to the Query object to build the query string
+        '''
         # Example of rest call for object search:
         # https://collectionapi.metmuseum.org/public/collection/v1/search?title=true&classification=PaintingsdepartmentId=11&isOnView=true&hasImages=true&isHighlight=false$dateBegin=-2000&dateEnd=2021&q=%22The%20Laundress%22
         if self.isTitleSearchValue.get() == 1:
@@ -216,30 +229,68 @@ class CuratorApp:
         self.queryObject.setParameter("dateEnd", self.dateEndValue.get())
         self.queryObject.setParameter("q", self.query.get())
 
-    # Runs the rest query based on the paramters selected in GUI
+    def displayLogo(self):
+        '''
+        displayLogo(): load logo into artObjectImage control
+        '''
+        self.openedUrl = urlopen('https://www.csuchico.edu/style-guide/visual/_images/Chico-state-athletics-icon.png')
+        self.objectImage = io.BytesIO(self.openedUrl.read())
+        self.pilImage = Image.open(self.objectImage)
+        self.tkImage = ImageTk.PhotoImage(self.pilImage)
+        self.artObjectImage.config(image=self.tkImage)
+        
+    def queueArtObjects(self):
+        '''
+        queueArtObjects(): loads images in queue objects result set into a queue
+        '''
+        logging.debug('queueArtObjects thread running')
+        resultSet = self.queryObject.fetchArtObjects()
+        for artObject in resultSet:
+            logging.debug('queueArtObjects adding objects to queue')
+            self.artObjectQueue.put(artObject)
+        logging.debug('queueArtObjects finished queueing Art Objects')
+    
+    def dequeueArtObjects(self):
+        '''
+        dequeueArtObjects: loads queued objects into TreeView contoller
+        '''
+        logging.debug('dequeueArtObjects thread running')
+        while True:
+            artObject = self.artObjectQueue.get()
+            logging.debug('dequeueArtObjects: ' + artObject.title)
+            if artObject.title == 'done':
+                logging.debug('dequeueArtjects done')
+                break
+            else:
+                logging.debug('dequeueArtObjects: inserting ' + artObject.title)
+                self.executor.submit(self.resultsTree.insert(
+                    '',
+                    END,
+                    artObject.imageUrl,
+                    text=artObject.title
+                ))
+        self.executor.submit(self.displayLogo)
+        self.progressbar.stop()
+
+    
     def runSearch(self):
+        '''
+        Runs the rest query based on the paramters selected in GUI
+        '''
         self.progressbar.start()
         # reset adapated from:
         # https://stackoverflow.com/questions/22812134/how-to-clear-an-entire-treeview-with-tkinter
         for i in self.resultsTree.get_children():
             self.resultsTree.delete(i)
         self.buildQuery()
-        resultSet = self.queryObject.runQuery()
-        # Iterate through results, and display the image of the first object
-        for position, artObject in enumerate(resultSet):
-            if position == 0:
-                self.show(artObject)
-            self.resultsTree.insert(
-                '',
-                position,
-                artObject.imageUrl,
-                text=artObject.title
-            )
-            position += 1
-        self.progressbar.stop()
+        self.executor.submit(self.queueArtObjects)
+        self.executor.submit(self.dequeueArtObjects)
+        
 
-    # Retrieve and display the image of the item selected in the tree
     def showByUrl(self, event):
+        '''
+        Retrieve and display the image of the item selected in the tree
+        '''
         for i in self.resultsTree.selection():
             logging.debug(i)
             self.openedUrl = urlopen(i)
@@ -254,8 +305,11 @@ class CuratorApp:
             )
             self.artObjectImage.pack(fill=BOTH, expand=True)
 
-    # Retrieve and display the image of the given ArtObject
+
     def show(self, artObject):
+        '''
+        Retrieve and display the image of the given ArtObject
+        '''
         # adapted from
         # https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
         logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
