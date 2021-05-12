@@ -194,13 +194,13 @@ class Database:
 
     def insertArtObject(self, user, artObject):
         logging.debug("Peristing favorites")
-        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getImageUrl(),))
+        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getDate(), artObject.getNationality(), artObject.getMedium(), artObject.getImageUrl(),))
         self.dbConnect.commit()
 
     def getFavorites(self, user):
         logging.debug("Checking for persisted favorites")
         resultSet = []
-        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium imageUrl from zeronormal where user=?;", (user.getName(),))
+        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=?;", (user.getName(),))
         rows = self.dbCursor.fetchall()
         for row in rows:
             resultSet.append(ArtObject(row[0], row[1], row[2], row[3], row[4], row[5], row[6]))
