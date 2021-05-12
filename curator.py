@@ -44,8 +44,12 @@ class User:
         if not self.isFavorite(artObject):
             logging.debug(f'Adding favorite with ID {artObject.objectId}')
             self._favorites.append(artObject)
+
+            # Save favorites whenever a new one is added.
+            self.saveFavorites()
         else:
             logging.debug(f'Art object {artObject.objectId} is already a favorite')
+
 
     def isFavorite(self, artObject):
         for f in self._favorites:
@@ -58,6 +62,9 @@ class User:
             '436139',
             'Dancers Practicing at the Barre', 
             'Edgar Degas', 
+            'testDate',
+            'testNationality',
+            'testMedium',
             'https://images.metmuseum.org/CRDImages/ep/web-large/DT840.jpg')
         )
 
@@ -65,6 +72,9 @@ class User:
             '436091',
             'The Laundress', 
             'Honoré Daumier', 
+            'testDate',
+            'testNationality',
+            'testMedium',
             'https://images.metmuseum.org/CRDImages/ep/web-large/DT2141.jpg')
         )
 
@@ -219,13 +229,13 @@ class Database:
 
     def insertArtObject(self, user, artObject):
         logging.debug("Peristing favorites")
-        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getImageUrl(),))
+        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getDate(), artObject.getNationality(), artObject.getMedium(), artObject.getImageUrl(),))
         self.dbConnect.commit()
 
     def getFavorites(self, user):
         logging.debug("Checking for persisted favorites")
         resultSet = []
-        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium imageUrl from zeronormal where user=?;", (user.getName(),))
+        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=?;", (user.getName(),))
         rows = self.dbCursor.fetchall()
         for row in rows:
             resultSet.append(ArtObject(row[0], row[1], row[2], row[3], row[4], row[5], row[6]))

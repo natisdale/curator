@@ -6,9 +6,9 @@ import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 # GUI
 from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, filedialog
-from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview
+from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview, Style
 # Curator API
-from curator import Museum, Query, User
+from curator import Museum, Query, User, ArtObject
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
@@ -190,9 +190,15 @@ class CuratorApp:
         self.artObjectImage.pack(fill=BOTH, expand=True)
         self.artObjectDetails.pack(fill=BOTH, expand=True)
 
+        # Additional styling
+        # style = Style()
+        # style.configure("Treeview", rowheight=25)
+
         # MM - Testing
-        self.user.devAdd()
-        self.listFavorites()
+        # self.user.devAdd()
+
+        # Display favorites on startup (if set)
+        self.user.loadFavorites()
         self.listFavorites()
 
 
@@ -265,6 +271,7 @@ class CuratorApp:
             self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
             self.objectImage = io.BytesIO(self.openedUrl.read())
             self.pilImage = Image.open(self.objectImage)
+            self.pilImage.thumbnail((self.imageFrame.winfo_width()-10, self.imageFrame.winfo_width()))
             self.tkImage = ImageTk.PhotoImage(self.pilImage)
             self.artObjectImage.destroy()
             self.artObjectImage = Label(
@@ -296,6 +303,7 @@ class CuratorApp:
         self.openedUrl = urlopen(artObject.getImageUrl())
         self.objectImage = io.BytesIO(self.openedUrl.read())
         self.pilImage = Image.open(self.objectImage)
+        self.pilImage.thumbnail((self.imageFrame.winfo_width()-10, self.imageFrame.winfo_width()))
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
 
@@ -314,7 +322,8 @@ class CuratorApp:
                     favListItem,
                     position,
                     '_cur_fav_' + artObject.imageUrl,
-                    text=artObject.title
+                    text=artObject.title,
+                    values=[artObject.artist, artObject.date, artObject.nationality, artObject.medium]
                 )
                 position += 1
 
@@ -330,11 +339,15 @@ class CuratorApp:
 
             favorites = json.load(file)
             for f in favorites:
-                self.addFavorite(ArtObject(
+                self.user.addFavorite(ArtObject(
                 f['objectId'],
                 f['title'], 
-                f['title'], 
-                f['imageUrl'])
+                f['artist'], 
+                f['date'],
+                f['nationality'],
+                f['medium'],
+                f['imageUrl']
+                )
             )
             logging.debug(favorites)
 
@@ -346,6 +359,8 @@ class CuratorApp:
         finally:
             if file:
                 file.close()
+
+        self.listFavorites()
 
     def exportFavorites(self):
         logging.debug('Exporting favorites...')
