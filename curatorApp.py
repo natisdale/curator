@@ -297,8 +297,6 @@ class CuratorApp:
                 ))
         self.executor.submit(self.displayLogo)
         self.progressbar.stop()
-
-
     
     def runSearch(self):
         '''
