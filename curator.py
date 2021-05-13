@@ -11,10 +11,10 @@ from PIL import Image, ImageTk  # used to handle images
 #GUI
 from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BOTH, HORIZONTAL, SUNKEN, X, Y, BooleanVar, DoubleVar, IntVar, StringVar
 from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, Scale, Spinbox, Style, Treeview # this overrides older controls in tkinter with newer tkk versions
-
+from concurrent.futures import ThreadPoolExecutor
 
 DB_PATH = "curator.db"
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 class User:
     def __init__(self, name):
@@ -127,7 +127,9 @@ class Query:
         self._parameters = {}
         self._museum = museum
         self.setParameter("hasImage", "true")
+        self.objectSet = []
         self.resultSet = []
+        self.state = 'new'
 
     def setParameter(self, parameterName, parameterValue):
         logging.debug("Setting Paramater " + parameterName + ":" + parameterValue)
@@ -135,6 +137,69 @@ class Query:
 
     def unsetParameter(self, parameterName):
         del self._parameters[parameterName]
+
+
+    def _fetchObjectIds(self):
+        logging.debug('_fetchObjectIds started')
+        self.objectSet = []
+        queryPayload = {}
+        queryHeaders= {}
+        q = self._museum.getSearchUrlBase()
+        q = q + urlencode(self._parameters)
+        logging.debug(q)
+        response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
+        jsonResponse = response.json()
+        logging.debug("Rest query reseived " + str(len(jsonResponse)) + " matches")
+        logging.debug(str(jsonResponse))
+        if jsonResponse['objectIDs']:
+            for id in jsonResponse['objectIDs']:
+                self.objectSet.append(id)
+        return len(self.objectSet)
+
+
+    def _fetchArtObject(self, id):
+        logging.debug('_fetchArtObject started')
+        objectHeaders = {}
+        objectPayload = {}
+        objectResponse = requests.request(
+            "GET",
+            self._museum.getObjectUrlBase()+str(id),
+            headers=objectHeaders,
+            data=objectPayload
+            )
+        objectJsonResponse = objectResponse.json()
+        artObject = ArtObject(
+            objectJsonResponse['objectID'],
+            objectJsonResponse['title'],
+            objectJsonResponse['artistDisplayName'],
+            objectJsonResponse['primaryImageSmall']
+        )
+        return(artObject)
+
+    def fetchArtObjects(self):
+        logging.debug('fetArtObjects starting')
+        self.resultSet = []
+        self._fetchObjectIds()
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._fetchArtObject, id) for id in self.objectSet]
+        for f in futures:
+            self.resultSet.append(f.result())
+        finishedToken = ArtObject(
+            'done',
+            'done',
+            'done',
+            'done'
+        )
+        self.resultSet.append(finishedToken)
+        return self.resultSet
+        
+
+    def threadedQuery(self):
+        self.resultSet = []
+        self.fetchObjectIds()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(self.fetchDetails)
+            logging.debug('Number of Ids retrieved: ', future.result())
 
     def runQuery(self):
         resultSet = []
