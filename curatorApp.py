@@ -256,6 +256,8 @@ class CuratorApp:
         self.pilImage = Image.open(self.objectImage)
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
+
+        # self.updateImage('https://www.csuchico.edu/style-guide/visual/_images/Chico-state-athletics-icon.png')
         
     def queueArtObjects(self):
         '''
@@ -322,7 +324,19 @@ class CuratorApp:
         Retrieve and display the image of the item selected in the tree
         '''
         logging.debug(i)
-        self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
+        
+        artist_value = ''.join(self.resultsTree.item(i, "value")[1])
+        date_value = ''.join(self.resultsTree.item(i, "value")[2])
+        nationality_val = ''.join(self.resultsTree.item(i, "value")[3])
+        medium_val = ''.join(self.resultsTree.item(i, "value")[4])
+        self.updateDescription(artist_value, date_value, nationality_val, medium_val)
+        self.updateImage(i.replace('_cur_fav_', ''))
+
+    def updateImage(self, url):
+        '''
+        Sets the art image in the image pane
+        '''
+        self.openedUrl = urlopen(url)
         self.objectImage = io.BytesIO(self.openedUrl.read())
         self.pilImage = Image.open(self.objectImage)
         self.pilImage.thumbnail((self.imageFrame.winfo_width()-15, self.imageFrame.winfo_width()))
@@ -334,34 +348,21 @@ class CuratorApp:
             image=self.tkImage,
             anchor="center"
         )
-        artist_value = ''.join(self.resultsTree.item(i, "value")[1])
-        date_value = ''.join(self.resultsTree.item(i, "value")[2])
-        nationality_val = ''.join(self.resultsTree.item(i, "value")[3])
-        medium_val = ''.join(self.resultsTree.item(i, "value")[4])
+        self.artObjectImage.pack(fill=BOTH, expand=True)
+
+    def updateDescription(self, artist, date, nationality, medium):
+        '''
+        Sets the art description in the image pane
+        '''
         self.artObjectDetails.destroy()
         self.artObjectDetails = Label(
         self.imageFrame,
-        text='Artist: ' + artist_value +
-            '\nDate: ' + date_value +
-            '\nNationality: ' + nationality_val +
-            '\nMedium: ' + medium_val
+        text='Artist: ' + artist +
+            '\nDate: ' + date +
+            '\nNationality: ' + nationality +
+            '\nMedium: ' + medium
         )
         self.artObjectDetails.pack(fill=BOTH, expand=True)
-        self.artObjectImage.pack(fill=BOTH, expand=True)
-
-    def show(self, artObject):
-        '''
-        Retrieve and display the image of the given ArtObject
-        '''
-        # adapted from
-        # https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
-        logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
-        self.openedUrl = urlopen(artObject.getImageUrl())
-        self.objectImage = io.BytesIO(self.openedUrl.read())
-        self.pilImage = Image.open(self.objectImage)
-        self.pilImage.thumbnail((self.imageFrame.winfo_width()-10, self.imageFrame.winfo_width()))
-        self.tkImage = ImageTk.PhotoImage(self.pilImage)
-        self.artObjectImage.config(image=self.tkImage)
 
     def _selectionHandler(self, event):
         '''
