@@ -267,6 +267,48 @@ class CuratorApp:
         # Reload favorites list
         self.listFavorites()
 
+    def showByUrl(self, i):
+        logging.debug(i)
+        self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
+        self.objectImage = io.BytesIO(self.openedUrl.read())
+        self.pilImage = Image.open(self.objectImage)
+        self.pilImage.thumbnail((self.imageFrame.winfo_width()-15, self.imageFrame.winfo_width()))
+        self.tkImage = ImageTk.PhotoImage(self.pilImage)
+        self.artObjectImage.destroy()
+        self.artObjectImage = Label(
+            self.imageFrame,
+            text='',
+            image=self.tkImage,
+            anchor="center"
+        )
+        artist_value = ''.join(self.resultsTree.item(i, "value")[1])
+        date_value = ''.join(self.resultsTree.item(i, "value")[2])
+        nationality_val = ''.join(self.resultsTree.item(i, "value")[3])
+        medium_val = ''.join(self.resultsTree.item(i, "value")[4])
+        # logging.debug(self.resultsTree.item(i, "value")[2])
+        self.artObjectDetails.destroy()
+        self.artObjectDetails = Label(
+        self.imageFrame,
+        text='Artist: ' + artist_value +
+            '\nDate: ' + date_value +
+            '\nNationality: ' + nationality_val +
+            '\nMedium: ' + medium_val
+        )
+        self.artObjectDetails.pack(fill=BOTH, expand=True)
+        self.artObjectImage.pack(fill=BOTH, expand=True)
+
+    # Retrieve and display the image of the given ArtObject
+    def show(self, artObject):
+        # adapted from
+        # https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
+        logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
+        self.openedUrl = urlopen(artObject.getImageUrl())
+        self.objectImage = io.BytesIO(self.openedUrl.read())
+        self.pilImage = Image.open(self.objectImage)
+        self.pilImage.thumbnail((self.imageFrame.winfo_width()-10, self.imageFrame.winfo_width()))
+        self.tkImage = ImageTk.PhotoImage(self.pilImage)
+        self.artObjectImage.config(image=self.tkImage)
+
     # Retrieve and display the image of the item selected in the tree
     def _selectionHandler(self, event):
         index = self.resultsTree.identify_row(event.y)
@@ -321,48 +363,6 @@ class CuratorApp:
                 self.resultsTree.item(id, values = values)
 
         self.listFavorites()
-
-    def showByUrl(self, i):
-        logging.debug(i)
-        self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
-        self.objectImage = io.BytesIO(self.openedUrl.read())
-        self.pilImage = Image.open(self.objectImage)
-        self.pilImage.thumbnail((self.imageFrame.winfo_width()-15, self.imageFrame.winfo_width()))
-        self.tkImage = ImageTk.PhotoImage(self.pilImage)
-        self.artObjectImage.destroy()
-        self.artObjectImage = Label(
-            self.imageFrame,
-            text='',
-            image=self.tkImage,
-            anchor="center"
-        )
-        artist_value = ''.join(self.resultsTree.item(i, "value")[1])
-        date_value = ''.join(self.resultsTree.item(i, "value")[2])
-        nationality_val = ''.join(self.resultsTree.item(i, "value")[3])
-        medium_val = ''.join(self.resultsTree.item(i, "value")[4])
-        # logging.debug(self.resultsTree.item(i, "value")[2])
-        self.artObjectDetails.destroy()
-        self.artObjectDetails = Label(
-        self.imageFrame,
-        text='Artist: ' + artist_value +
-            '\nDate: ' + date_value +
-            '\nNationality: ' + nationality_val +
-            '\nMedium: ' + medium_val
-        )
-        self.artObjectDetails.pack(fill=BOTH, expand=True)
-        self.artObjectImage.pack(fill=BOTH, expand=True)
-
-    # Retrieve and display the image of the given ArtObject
-    def show(self, artObject):
-        # adapted from
-        # https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
-        logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
-        self.openedUrl = urlopen(artObject.getImageUrl())
-        self.objectImage = io.BytesIO(self.openedUrl.read())
-        self.pilImage = Image.open(self.objectImage)
-        self.pilImage.thumbnail((self.imageFrame.winfo_width()-10, self.imageFrame.winfo_width()))
-        self.tkImage = ImageTk.PhotoImage(self.pilImage)
-        self.artObjectImage.config(image=self.tkImage)
 
     def listFavorites(self, expand = True):
         # Remove existing "favorites" tree item
