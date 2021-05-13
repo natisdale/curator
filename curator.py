@@ -38,10 +38,11 @@ class User:
             artObject.save(self)
 
     def getFavorites(self):
+        self.loadFavorites()
         return self._favorites
 
     def addFavorite(self, artObject):
-        if not self.isFavorite(artObject):
+        if not self.isFavorite(artObject.objectId):
             logging.debug(f'Adding favorite with ID {artObject.objectId}')
             self._favorites.append(artObject)
 
@@ -50,33 +51,18 @@ class User:
         else:
             logging.debug(f'Art object {artObject.objectId} is already a favorite')
 
+    def removeFavorite(self, artObject):
+        artObject.remove(self)
+        self.loadFavorites()
 
-    def isFavorite(self, artObject):
+    def isFavorite(self, objectId):
         for f in self._favorites:
-            if f.objectId == artObject.objectId:
+            # artObject IDs from query are int, those from db are str - convert 
+            # to str before check
+            if f.objectId == str(objectId):
                 return True
         return False
 
-    def devAdd(self):
-        self.addFavorite(ArtObject(
-            '436139',
-            'Dancers Practicing at the Barre', 
-            'Edgar Degas', 
-            'testDate',
-            'testNationality',
-            'testMedium',
-            'https://images.metmuseum.org/CRDImages/ep/web-large/DT840.jpg')
-        )
-
-        self.addFavorite(ArtObject(
-            '436091',
-            'The Laundress', 
-            'Honoré Daumier', 
-            'testDate',
-            'testNationality',
-            'testMedium',
-            'https://images.metmuseum.org/CRDImages/ep/web-large/DT2141.jpg')
-        )
 
 class Museum:
     def __init__(self, name, searchUrlBase, objectUrlBase):
@@ -218,6 +204,11 @@ class ArtObject:
         db.insertArtObject(user, self)
         del db
 
+    def remove(self, user):
+        db = Database(DB_PATH)
+        db.removeArtObject(user, self)
+        del db
+
 class Database:
     def __init__(self, dbPath):
         self.dbPath = dbPath
@@ -232,10 +223,15 @@ class Database:
         self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getDate(), artObject.getNationality(), artObject.getMedium(), artObject.getImageUrl(),))
         self.dbConnect.commit()
 
+    def removeArtObject(self, user, artObject):
+        logging.debug("Removing from favorites table")
+        self.dbCursor.execute('''DELETE FROM zeronormal WHERE user=? AND objectId=?;''', (user.getName(), str(artObject.getObjectId())))
+        self.dbConnect.commit()
+
     def getFavorites(self, user):
         logging.debug("Checking for persisted favorites")
         resultSet = []
-        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=?;", (user.getName(),))
+        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=? ORDER BY title ASC;", (user.getName(),))
         rows = self.dbCursor.fetchall()
         for row in rows:
             resultSet.append(ArtObject(row[0], row[1], row[2], row[3], row[4], row[5], row[6]))

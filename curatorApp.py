@@ -5,7 +5,7 @@ from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
 # GUI
-from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, filedialog
+from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, filedialog, messagebox
 from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview, Style
 # Curator API
 from curator import Museum, Query, User, ArtObject
@@ -151,9 +151,10 @@ class CuratorApp:
         self.progressbar.config(mode='indeterminate')
         # Widgets for resultsFrame
         self.resultsTree = Treeview(self.resultsFrame, height=200)
-        # browse option to only allow selection of single item
-        self.resultsTree.config(selectmode='browse')
-        self.resultsTree.bind('<<TreeviewSelect>>', self.showByUrl)
+        # resultTree config
+        self.resultsTree.config(selectmode='browse', show='tree', columns=('ID', 'Artist', 'Date', 'Nationality', 'Medium', 'Favorite'), displaycolumns=['Favorite'])
+        self.resultsTree.column('Favorite', anchor='center', width=30, stretch=False)
+        self.resultsTree.bind('<ButtonRelease-1>', self._selectionHandler)
         # Widgets for imageFrame
         self.artObjectImage = Label(
             self.imageFrame,
@@ -191,11 +192,8 @@ class CuratorApp:
         self.artObjectDetails.pack(fill=BOTH, expand=True)
 
         # Additional styling
-        # style = Style()
-        # style.configure("Treeview", rowheight=25)
-
-        # MM - Testing
-        # self.user.devAdd()
+        style = Style()
+        style.configure("Treeview", rowheight=25)
 
         # Display favorites on startup (if set)
         self.user.loadFavorites()
@@ -254,7 +252,14 @@ class CuratorApp:
                 position,
                 artObject.imageUrl,
                 text=artObject.title,
-                values=[artObject.artist, artObject.date, artObject.nationality, artObject.medium]
+                values=[
+                    artObject.objectId,
+                    artObject.artist, 
+                    artObject.date, 
+                    artObject.nationality, 
+                    artObject.medium, 
+                    self._getFavoriteIcon(self.user.isFavorite(artObject.objectId))
+                ]
             )
             position += 1
         self.progressbar.stop()
@@ -263,37 +268,89 @@ class CuratorApp:
         self.listFavorites()
 
     # Retrieve and display the image of the item selected in the tree
-    def showByUrl(self, event):
-        for i in self.resultsTree.selection():
-            if i == 'favorites' or i == 'searchResults':
-                continue
-            logging.debug(i)
-            self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
-            self.objectImage = io.BytesIO(self.openedUrl.read())
-            self.pilImage = Image.open(self.objectImage)
-            self.pilImage.thumbnail((self.imageFrame.winfo_width()-10, self.imageFrame.winfo_width()))
-            self.tkImage = ImageTk.PhotoImage(self.pilImage)
-            self.artObjectImage.destroy()
-            self.artObjectImage = Label(
-                self.imageFrame,
-                text='',
-                image=self.tkImage
-            )
-            artist_value = ''.join(self.resultsTree.item(i, "value")[0])
-            date_value = ''.join(self.resultsTree.item(i, "value")[1])
-            nationality_val = ''.join(self.resultsTree.item(i, "value")[2])
-            medium_val = ''.join(self.resultsTree.item(i, "value")[3])
-            # logging.debug(self.resultsTree.item(i, "value")[2])
-            self.artObjectDetails.destroy()
-            self.artObjectDetails = Label(
+    def _selectionHandler(self, event):
+        index = self.resultsTree.identify_row(event.y)
+        column = self.resultsTree.identify_column(event.x)
+
+        # Ignore clicks on the tree "parents"
+        if index in ['favorites', 'searchResults']:
+            return
+        
+        # "#1" (favorite) is the first visible column after the row's 
+        # text value col (#0)
+        if column == "#1":
+            self._toggleFavorite(index)
+        else:
+            self.showByUrl(index)
+
+    # Toggle item as favorite and update treeview
+    def _toggleFavorite(self, i):
+        logging.debug(f"Toggling favorite: {i}")
+        resultsId = i.replace('_cur_fav_', '')
+        favoritesId = f"_cur_fav_{resultsId}"
+
+        artObject = ArtObject(
+            objectId = self.resultsTree.item(i, "value")[0],
+            title = self.resultsTree.item(i, "text"),
+            artist = self.resultsTree.item(i, "value")[1],
+            date = self.resultsTree.item(i, "value")[2],
+            nationality = self.resultsTree.item(i, "value")[3],
+            medium = self.resultsTree.item(i, "value")[4],
+            imageUrl = i 
+        )
+
+        if self.user.isFavorite(artObject.objectId):
+            self.user.removeFavorite(artObject)
+            favIcon = False
+        else:
+            self.user.addFavorite(artObject)
+            favIcon = True
+
+        # Update both favorites and results item rows
+        values = [
+            artObject.objectId,
+            artObject.artist,
+            artObject.date,
+            artObject.nationality,
+            artObject.medium,
+            self._getFavoriteIcon(favIcon)
+        ]
+
+        for id in [resultsId, favoritesId]:
+            if self.resultsTree.exists(id):
+                self.resultsTree.item(id, values = values)
+
+        self.listFavorites()
+
+    def showByUrl(self, i):
+        logging.debug(i)
+        self.openedUrl = urlopen(i.replace('_cur_fav_', ''))
+        self.objectImage = io.BytesIO(self.openedUrl.read())
+        self.pilImage = Image.open(self.objectImage)
+        self.pilImage.thumbnail((self.imageFrame.winfo_width()-15, self.imageFrame.winfo_width()))
+        self.tkImage = ImageTk.PhotoImage(self.pilImage)
+        self.artObjectImage.destroy()
+        self.artObjectImage = Label(
             self.imageFrame,
-            text='Artist: ' + artist_value +
-                '\nDate: ' + date_value +
-                '\nNationality: ' + nationality_val +
-                '\nMedium: ' + medium_val
-            )
-            self.artObjectDetails.pack(fill=BOTH, expand=True)
-            self.artObjectImage.pack(fill=BOTH, expand=True)
+            text='',
+            image=self.tkImage,
+            anchor="center"
+        )
+        artist_value = ''.join(self.resultsTree.item(i, "value")[1])
+        date_value = ''.join(self.resultsTree.item(i, "value")[2])
+        nationality_val = ''.join(self.resultsTree.item(i, "value")[3])
+        medium_val = ''.join(self.resultsTree.item(i, "value")[4])
+        # logging.debug(self.resultsTree.item(i, "value")[2])
+        self.artObjectDetails.destroy()
+        self.artObjectDetails = Label(
+        self.imageFrame,
+        text='Artist: ' + artist_value +
+            '\nDate: ' + date_value +
+            '\nNationality: ' + nationality_val +
+            '\nMedium: ' + medium_val
+        )
+        self.artObjectDetails.pack(fill=BOTH, expand=True)
+        self.artObjectImage.pack(fill=BOTH, expand=True)
 
     # Retrieve and display the image of the given ArtObject
     def show(self, artObject):
@@ -307,7 +364,7 @@ class CuratorApp:
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
 
-    def listFavorites(self):
+    def listFavorites(self, expand = True):
         # Remove existing "favorites" tree item
         if (self.resultsTree.exists('favorites')): 
             self.resultsTree.delete('favorites') 
@@ -316,6 +373,7 @@ class CuratorApp:
         
         if len(favoritesSet) > 0:
             favListItem = self.resultsTree.insert('', 'end', 'favorites', text='Favorites')
+            self.resultsTree.item("favorites", open = expand)
 
             for position, artObject in enumerate(favoritesSet):
                 self.resultsTree.insert(
@@ -323,47 +381,69 @@ class CuratorApp:
                     position,
                     '_cur_fav_' + artObject.imageUrl,
                     text=artObject.title,
-                    values=[artObject.artist, artObject.date, artObject.nationality, artObject.medium]
+                    values=[
+                        artObject.objectId,
+                        artObject.artist, 
+                        artObject.date, 
+                        artObject.nationality, 
+                        artObject.medium, 
+                        self._getFavoriteIcon(self.user.isFavorite(artObject.objectId))
+                    ]
                 )
                 position += 1
 
+    def _getFavoriteIcon(self, isFavorite):
+        if isFavorite:
+            return u"\u2605"
+        else:
+            return u"\u2606"
+
     def importFavorites(self):
         logging.debug('Importing favorites...')
-        try:
-            file = filedialog.askopenfile(
-                mode="r", 
-                title='Import Favorites', 
-                filetypes=[('Curator Favorites', '*.curator')], 
-                defaultextension='.curator'
-            )
 
-            favorites = json.load(file)
-            for f in favorites:
-                self.user.addFavorite(ArtObject(
-                f['objectId'],
-                f['title'], 
-                f['artist'], 
-                f['date'],
-                f['nationality'],
-                f['medium'],
-                f['imageUrl']
+        go = messagebox.askokcancel(
+            "Overwrite Warning", 
+            "Importing a favorites file will overwrite your current favorites. If you'd like to keep your favorites, use the \"Export Favorites\" option before continuing. Would you like to proceed?",
+            default="cancel"
+        )
+        
+        if go:
+            try:
+                file = filedialog.askopenfile(
+                    mode="r", 
+                    title='Import Favorites', 
+                    filetypes=[('Curator Favorites', '*.curator')], 
+                    defaultextension='.curator'
                 )
-            )
-            logging.debug(favorites)
 
-            file.close()
-        except TypeError as e:
-            logging.debug(f'Couldn\'t convert JSON favorites to obj. {str(e)}')
-        except Exception as e:
-            logging.debug(f'Something went wrong importing favorites. {str(e)}')
-        finally:
-            if file:
+                favorites = json.load(file)
+                for f in favorites:
+                    self.user.addFavorite(ArtObject(
+                    f['objectId'],
+                    f['title'], 
+                    f['artist'], 
+                    f['date'],
+                    f['nationality'],
+                    f['medium'],
+                    f['imageUrl']
+                    )
+                )
+                logging.debug(favorites)
+
                 file.close()
+            except TypeError as e:
+                logging.debug(f'Couldn\'t convert JSON favorites to obj. {str(e)}')
+            except Exception as e:
+                logging.debug(f'Something went wrong importing favorites. {str(e)}')
+            finally:
+                if file:
+                    file.close()
 
-        self.listFavorites()
+            self.listFavorites()
 
     def exportFavorites(self):
         logging.debug('Exporting favorites...')
+
         try:
             file = filedialog.asksaveasfile(
                 mode='w', 
