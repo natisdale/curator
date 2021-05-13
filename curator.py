@@ -14,7 +14,7 @@ from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, S
 from concurrent.futures import ThreadPoolExecutor
 
 DB_PATH = "curator.db"
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 class User:
     def __init__(self, name):
