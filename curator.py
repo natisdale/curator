@@ -14,7 +14,7 @@ from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, S
 from concurrent.futures import ThreadPoolExecutor
 
 DB_PATH = "curator.db"
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 class User:
     def __init__(self, name):
@@ -138,7 +138,6 @@ class Query:
     def unsetParameter(self, parameterName):
         del self._parameters[parameterName]
 
-
     def _fetchObjectIds(self):
         logging.debug('_fetchObjectIds started')
         self.objectSet = []
@@ -149,7 +148,7 @@ class Query:
         logging.debug(q)
         response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
         jsonResponse = response.json()
-        logging.debug("Rest query reseived " + str(len(jsonResponse)) + " matches")
+        logging.debug("Rest query received " + str(len(jsonResponse)) + " matches")
         logging.debug(str(jsonResponse))
         if jsonResponse['objectIDs']:
             for id in jsonResponse['objectIDs']:
@@ -172,6 +171,9 @@ class Query:
             objectJsonResponse['objectID'],
             objectJsonResponse['title'],
             objectJsonResponse['artistDisplayName'],
+            objectJsonResponse['objectDate'],
+            objectJsonResponse['artistNationality'],
+            objectJsonResponse['medium'],
             objectJsonResponse['primaryImageSmall']
         )
         return(artObject)
@@ -188,6 +190,9 @@ class Query:
             'done',
             'done',
             'done',
+            'done',
+            'done',
+            'done',
             'done'
         )
         self.resultSet.append(finishedToken)
@@ -200,38 +205,6 @@ class Query:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(self.fetchDetails)
             logging.debug('Number of Ids retrieved: ', future.result())
-
-    def runQuery(self):
-        resultSet = []
-        queryPayload = {}
-        queryHeaders= {}
-        q = self._museum.getSearchUrlBase()
-        q = q + urlencode(self._parameters)
-        logging.debug(q)
-        response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
-        jsonResponse = response.json()
-        logging.debug("Rest query reseived " + str(len(jsonResponse)) + " matches")
-        logging.debug(str(jsonResponse))
-        for id in jsonResponse['objectIDs']:
-            objectHeaders = {}
-            objectPayload = {}
-            objectResponse = requests.request(
-                "GET",
-                self._museum.getObjectUrlBase()+str(id),
-                headers=objectHeaders,
-                data=objectPayload
-                )
-            objectJsonResponse = objectResponse.json()
-            resultSet.append(ArtObject(
-                objectJsonResponse['objectID'],
-                objectJsonResponse['title'],
-                objectJsonResponse['artistDisplayName'],
-                objectJsonResponse['objectDate'],
-                objectJsonResponse['artistNationality'],
-                objectJsonResponse['medium'],
-                objectJsonResponse['primaryImageSmall']
-            ))
-        return resultSet
 
 class ArtObject:
     def __init__(self, objectId, title, artist, date, nationality, medium, imageUrl):

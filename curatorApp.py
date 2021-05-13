@@ -282,7 +282,7 @@ class CuratorApp:
             else:
                 logging.debug('dequeueArtObjects: inserting ' + artObject.title)
                 self.executor.submit(self.resultsTree.insert(
-                    '',
+                    'searchResults',
                     END,
                     artObject.imageUrl,
                     text=artObject.title,
@@ -298,6 +298,7 @@ class CuratorApp:
         self.executor.submit(self.displayLogo)
         self.progressbar.stop()
 
+
     
     def runSearch(self):
         '''
@@ -308,44 +309,15 @@ class CuratorApp:
         # https://stackoverflow.com/questions/22812134/how-to-clear-an-entire-treeview-with-tkinter
         for i in self.resultsTree.get_children():
             self.resultsTree.delete(i)
+        self.listFavorites()
 
-        # self.resultsTree.insert('', 'end', 'searchResults', text='Search Results')
-        # self.resultsTree.item("searchResults", open = True)
+        self.resultsTree.insert('', 0, 'searchResults', text='Search Results')
+        self.resultsTree.item("searchResults", open = True)
 
         self.buildQuery()
 
         self.executor.submit(self.queueArtObjects)
-        self.executor.submit(self.dequeueArtObjects)
-
-        # ## Changes HERE
-        # resultSet = self.queryObject.runQuery()
-        # # Iterate through results, and display the image of the first object
-        # searchResults = self.resultsTree.insert('', 'end', 'searchResults', text='Search Results')
-        # self.resultsTree.item("searchResults", open = True)
-        # for position, artObject in enumerate(resultSet):
-        #     if position == 0:
-        #         self.show(artObject)
-        #     self.resultsTree.insert(
-        #         searchResults,
-        #         position,
-        #         artObject.imageUrl,
-        #         text=artObject.title,
-        #         values=[
-        #             artObject.objectId,
-        #             artObject.artist, 
-        #             artObject.date, 
-        #             artObject.nationality, 
-        #             artObject.medium, 
-        #             self._getFavoriteIcon(self.user.isFavorite(artObject.objectId))
-        #         ]
-        #     )
-        #     position += 1
-        # self.progressbar.stop()
-
-        # # Reload favorites list
-        # self.listFavorites()
-        
-        
+        self.executor.submit(self.dequeueArtObjects)    
 
     def showByUrl(self, i):
         '''
@@ -393,8 +365,10 @@ class CuratorApp:
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
 
-    # Retrieve and display the image of the item selected in the tree
     def _selectionHandler(self, event):
+        '''
+        Click for handler for treeView
+        '''
         index = self.resultsTree.identify_row(event.y)
         column = self.resultsTree.identify_column(event.x)
 
@@ -409,8 +383,10 @@ class CuratorApp:
         else:
             self.showByUrl(index)
 
-    # Toggle item as favorite and update treeview
     def _toggleFavorite(self, i):
+        '''
+        Set/unset a piece as favorite and update treeView
+        '''
         logging.debug(f"Toggling favorite: {i}")
         resultsId = i.replace('_cur_fav_', '')
         favoritesId = f"_cur_fav_{resultsId}"
@@ -449,6 +425,9 @@ class CuratorApp:
         self.listFavorites()
 
     def listFavorites(self, expand = True):
+        '''
+        Clear and re-render favorites tree
+        '''
         # Remove existing "favorites" tree item
         if (self.resultsTree.exists('favorites')): 
             self.resultsTree.delete('favorites') 
@@ -456,7 +435,7 @@ class CuratorApp:
         favoritesSet = self.user.getFavorites()
         
         if len(favoritesSet) > 0:
-            favListItem = self.resultsTree.insert('', 'end', 'favorites', text='Favorites')
+            favListItem = self.resultsTree.insert('', END, 'favorites', text='Favorites')
             self.resultsTree.item("favorites", open = expand)
 
             for position, artObject in enumerate(favoritesSet):
@@ -477,12 +456,18 @@ class CuratorApp:
                 position += 1
 
     def _getFavoriteIcon(self, isFavorite):
+        '''
+        Return the unicode string for the favorites icon
+        '''
         if isFavorite:
             return u"\u2605"
         else:
             return u"\u2606"
 
     def importFavorites(self):
+        '''
+        Handler for the "Import Favorites" menu option
+        '''
         logging.debug('Importing favorites...')
 
         go = messagebox.askokcancel(
@@ -526,6 +511,9 @@ class CuratorApp:
             self.listFavorites()
 
     def exportFavorites(self):
+        '''
+        Handler for the "Export Favorites" menu option
+        '''
         logging.debug('Exporting favorites...')
 
         try:
