@@ -2,8 +2,10 @@ venv
 .vscode
 curator.db
 __pycache__/
+MetObjects.csv
 bin/
 include/
 lib/
 pyvenv.cfg
 *.curator
+
