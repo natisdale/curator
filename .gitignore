@@ -2,3 +2,8 @@ venv
 .vscode
 curator.db
 __pycache__/
+bin/
+include/
+lib/
+pyvenv.cfg
+*.curator

@@ -38,10 +38,31 @@ class User:
             artObject.save(self)
 
     def getFavorites(self):
+        self.loadFavorites()
         return self._favorites
 
     def addFavorite(self, artObject):
-        self._favorites.append(artObject)
+        if not self.isFavorite(artObject.objectId):
+            logging.debug(f'Adding favorite with ID {artObject.objectId}')
+            self._favorites.append(artObject)
+
+            # Save favorites whenever a new one is added.
+            self.saveFavorites()
+        else:
+            logging.debug(f'Art object {artObject.objectId} is already a favorite')
+
+    def removeFavorite(self, artObject):
+        artObject.remove(self)
+        self.loadFavorites()
+
+    def isFavorite(self, objectId):
+        for f in self._favorites:
+            # artObject IDs from query are int, those from db are str - convert 
+            # to str before check
+            if f.objectId == str(objectId):
+                return True
+        return False
+
 
 class Museum:
     def __init__(self, name, searchUrlBase, objectUrlBase):
@@ -117,7 +138,6 @@ class Query:
     def unsetParameter(self, parameterName):
         del self._parameters[parameterName]
 
-
     def _fetchObjectIds(self):
         logging.debug('_fetchObjectIds started')
         self.objectSet = []
@@ -128,7 +148,7 @@ class Query:
         logging.debug(q)
         response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
         jsonResponse = response.json()
-        logging.debug("Rest query reseived " + str(len(jsonResponse)) + " matches")
+        logging.debug("Rest query received " + str(len(jsonResponse)) + " matches")
         logging.debug(str(jsonResponse))
         if jsonResponse['objectIDs']:
             for id in jsonResponse['objectIDs']:
@@ -151,6 +171,9 @@ class Query:
             objectJsonResponse['objectID'],
             objectJsonResponse['title'],
             objectJsonResponse['artistDisplayName'],
+            objectJsonResponse['objectDate'],
+            objectJsonResponse['artistNationality'],
+            objectJsonResponse['medium'],
             objectJsonResponse['primaryImageSmall']
         )
         return(artObject)
@@ -167,6 +190,9 @@ class Query:
             'done',
             'done',
             'done',
+            'done',
+            'done',
+            'done',
             'done'
         )
         self.resultSet.append(finishedToken)
@@ -180,6 +206,8 @@ class Query:
             future = executor.submit(self.fetchDetails)
             logging.debug('Number of Ids retrieved: ', future.result())
 
+
+    # This is needed for CI testing
     def runQuery(self):
         resultSet = []
         queryPayload = {}
@@ -205,15 +233,21 @@ class Query:
                 objectJsonResponse['objectID'],
                 objectJsonResponse['title'],
                 objectJsonResponse['artistDisplayName'],
+                objectJsonResponse['objectDate'],
+                objectJsonResponse['artistNationality'],
+                objectJsonResponse['medium'],
                 objectJsonResponse['primaryImageSmall']
             ))
         return resultSet
 
 class ArtObject:
-    def __init__(self, objectId, title, artist, imageUrl):
+    def __init__(self, objectId, title, artist, date, nationality, medium, imageUrl):
             self.objectId = objectId
             self.title = title
             self.artist = artist
+            self.date = date
+            self.nationality = nationality
+            self.medium = medium
             self.imageUrl = imageUrl
     
     def getObjectId(self):
@@ -221,9 +255,18 @@ class ArtObject:
 
     def getTitle(self):
         return self.title
-    
+
     def getArtist(self):
         return self.artist
+
+    def getDate(self):
+        return self.date
+
+    def getNationality(self):
+        return self.nationality
+
+    def getMedium(self):
+        return self.medium
     
     def getImageUrl(self):
         return self.imageUrl
@@ -233,27 +276,37 @@ class ArtObject:
         db.insertArtObject(user, self)
         del db
 
+    def remove(self, user):
+        db = Database(DB_PATH)
+        db.removeArtObject(user, self)
+        del db
+
 class Database:
     def __init__(self, dbPath):
         self.dbPath = dbPath
         self.dbConnect = sqlite3.connect(self.dbPath)
         self.dbCursor = self.dbConnect.cursor()
-        self.dbCursor.execute('''CREATE TABLE IF NOT EXISTS zeronormal (user text, objectId text, title text, artist text, imageUrl text, PRIMARY KEY (user, objectId))''')
+        self.dbCursor.execute('''CREATE TABLE IF NOT EXISTS zeronormal (user text, objectId text, title text, artist text, date text, nationality text, medium text, imageUrl text, PRIMARY KEY (user, objectId))''')
         self.dbConnect.commit()
         logging.debug("Database object created successfully")
 
     def insertArtObject(self, user, artObject):
         logging.debug("Peristing favorites")
-        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, imageUrl) VALUES (?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getImageUrl(),))
+        self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getDate(), artObject.getNationality(), artObject.getMedium(), artObject.getImageUrl(),))
+        self.dbConnect.commit()
+
+    def removeArtObject(self, user, artObject):
+        logging.debug("Removing from favorites table")
+        self.dbCursor.execute('''DELETE FROM zeronormal WHERE user=? AND objectId=?;''', (user.getName(), str(artObject.getObjectId())))
         self.dbConnect.commit()
 
     def getFavorites(self, user):
         logging.debug("Checking for persisted favorites")
         resultSet = []
-        self.dbCursor.execute("SELECT objectId, title, artist, imageUrl from zeronormal where user=?;", (user.getName(),))
+        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=? ORDER BY title ASC;", (user.getName(),))
         rows = self.dbCursor.fetchall()
         for row in rows:
-            resultSet.append(ArtObject(row[0], row[1], row[2], row[3]))
+            resultSet.append(ArtObject(row[0], row[1], row[2], row[3], row[4], row[5], row[6]))
         return resultSet
 
     def __del__(self):
