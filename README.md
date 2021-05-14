@@ -26,4 +26,4 @@ The graphical interface written in Python using Tkinter is shown below.  The lef
 
 Note: the utility requires pandas. To install "pip install pandas" is recommended.
 
-![GUI Prototype](https://tisdale.info/images/curator-gui-dev.png? "GUI Prototype")
+![GUI Prototype](img/curatorWithFavorites.png "GUI Prototype")
