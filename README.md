@@ -24,4 +24,6 @@ The essential objects are:
 
 The graphical interface written in Python using Tkinter is shown below.  The left panel contains controls for setting query parameters.  The middle pane shows the titles of objects returned by a search.  Selecting an item from the results list displays the main image for that art object in the pane on the right.
 
-![GUI Prototype](https://tisdale.info/images/curator-gui-dev.png? "GUI Prototype")
+Note: the utility requires pandas. To install "pip install pandas" is recommended.
+
+![GUI Prototype](img/curatorWithFavorites.png "GUI Prototype")

@@ -8,13 +8,14 @@ from urllib.request import urlopen # used in retrieving image
 import sqlite3 # used for local cache of data
 import io # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
+import pandas # for parsing sql
 #GUI
 from tkinter import END, Frame, messagebox, Tk, TOP, BOTTOM, LEFT, RIGHT, BOTH, HORIZONTAL, SUNKEN, X, Y, BooleanVar, DoubleVar, IntVar, StringVar
 from tkinter.ttk import Button, Checkbutton, Entry, Frame, Label, Panedwindow, Scale, Spinbox, Style, Treeview # this overrides older controls in tkinter with newer tkk versions
-
+from concurrent.futures import ThreadPoolExecutor
 
 DB_PATH = "curator.db"
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 class User:
     def __init__(self, name):
@@ -38,10 +39,31 @@ class User:
             artObject.save(self)
 
     def getFavorites(self):
+        self.loadFavorites()
         return self._favorites
 
     def addFavorite(self, artObject):
-        self._favorites.append(artObject)
+        if not self.isFavorite(artObject.objectId):
+            logging.debug(f'Adding favorite with ID {artObject.objectId}')
+            self._favorites.append(artObject)
+
+            # Save favorites whenever a new one is added.
+            self.saveFavorites()
+        else:
+            logging.debug(f'Art object {artObject.objectId} is already a favorite')
+
+    def removeFavorite(self, artObject):
+        artObject.remove(self)
+        self.loadFavorites()
+
+    def isFavorite(self, objectId):
+        for f in self._favorites:
+            # artObject IDs from query are int, those from db are str - convert 
+            # to str before check
+            if f.objectId == str(objectId):
+                return True
+        return False
+
 
 class Museum:
     def __init__(self, name, searchUrlBase, objectUrlBase):
@@ -71,7 +93,7 @@ class Museum:
             "Modern Art" : 21,
         }
         self._geoLocations = [ "Europe", "France", "Paris", "China", "New York" ]
-        self._classifications = [ "Ceramics", "Furniture", "Paintings", "Sculpture", "Textiles" ]
+        self._classifications = self.get_classifications()
 
     def getSearchUrlBase(self):
         return self._searchUrlBase
@@ -99,6 +121,30 @@ class Museum:
 
     def getClassifications(self):
         return self._classifications
+
+    def get_classifications(self):
+        print("getting classifications")
+        conn=sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(''' SELECT count(name) FROM sqlite_master WHERE type='table' AND name='classifications' ''')
+        if cursor.fetchone()[0]==1 :
+            print('Table exists.')
+            print("classifications")
+        else:
+            print("making classifications")
+            exec(open("parse_to_sql.py").read())
+        query = ('''SELECT Classification FROM classifications;''')
+        try:
+            cursor.execute(query)
+            rows =cursor.fetchall()
+            temp = []
+            for i in rows:
+                temp.append(i[0])
+            conn.commit()
+            return temp
+        except NameError:
+            print(NameError)
+            return []
         
 
 class Query:
@@ -106,7 +152,9 @@ class Query:
         self._parameters = {}
         self._museum = museum
         self.setParameter("hasImage", "true")
+        self.objectSet = []
         self.resultSet = []
+        self.state = 'new'
 
     def setParameter(self, parameterName, parameterValue):
         logging.debug("Setting Paramater " + parameterName + ":" + parameterValue)
@@ -115,6 +163,76 @@ class Query:
     def unsetParameter(self, parameterName):
         del self._parameters[parameterName]
 
+    def _fetchObjectIds(self):
+        logging.debug('_fetchObjectIds started')
+        self.objectSet = []
+        queryPayload = {}
+        queryHeaders= {}
+        q = self._museum.getSearchUrlBase()
+        q = q + urlencode(self._parameters)
+        logging.debug(q)
+        response = requests.request("GET", q, headers=queryHeaders, data = queryPayload)
+        jsonResponse = response.json()
+        logging.debug("Rest query received " + str(len(jsonResponse)) + " matches")
+        logging.debug(str(jsonResponse))
+        if jsonResponse['objectIDs']:
+            for id in jsonResponse['objectIDs']:
+                self.objectSet.append(id)
+        return len(self.objectSet)
+
+
+    def _fetchArtObject(self, id):
+        logging.debug('_fetchArtObject started')
+        objectHeaders = {}
+        objectPayload = {}
+        objectResponse = requests.request(
+            "GET",
+            self._museum.getObjectUrlBase()+str(id),
+            headers=objectHeaders,
+            data=objectPayload
+            )
+        objectJsonResponse = objectResponse.json()
+        artObject = ArtObject(
+            objectJsonResponse['objectID'],
+            objectJsonResponse['title'],
+            objectJsonResponse['artistDisplayName'],
+            objectJsonResponse['objectDate'],
+            objectJsonResponse['artistNationality'],
+            objectJsonResponse['medium'],
+            objectJsonResponse['primaryImageSmall']
+        )
+        return(artObject)
+
+    def fetchArtObjects(self):
+        logging.debug('fetArtObjects starting')
+        self.resultSet = []
+        self._fetchObjectIds()
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self._fetchArtObject, id) for id in self.objectSet]
+        for f in futures:
+            self.resultSet.append(f.result())
+        finishedToken = ArtObject(
+            'done',
+            'done',
+            'done',
+            'done',
+            'done',
+            'done',
+            'done'
+        )
+        self.resultSet.append(finishedToken)
+        return self.resultSet
+        
+
+    def threadedQuery(self):
+        self.resultSet = []
+        self.fetchObjectIds()
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(self.fetchDetails)
+            logging.debug('Number of Ids retrieved: ', future.result())
+
+
+    # This is needed for CI testing
     def runQuery(self):
         resultSet = []
         queryPayload = {}
@@ -183,6 +301,11 @@ class ArtObject:
         db.insertArtObject(user, self)
         del db
 
+    def remove(self, user):
+        db = Database(DB_PATH)
+        db.removeArtObject(user, self)
+        del db
+
 class Database:
     def __init__(self, dbPath):
         self.dbPath = dbPath
@@ -197,10 +320,15 @@ class Database:
         self.dbCursor.execute('''INSERT OR REPLACE INTO zeronormal (user, objectId, title, artist, date, nationality, medium, imageUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?);''', (user.getName(), str(artObject.getObjectId()), artObject.getTitle(), artObject.getArtist(), artObject.getDate(), artObject.getNationality(), artObject.getMedium(), artObject.getImageUrl(),))
         self.dbConnect.commit()
 
+    def removeArtObject(self, user, artObject):
+        logging.debug("Removing from favorites table")
+        self.dbCursor.execute('''DELETE FROM zeronormal WHERE user=? AND objectId=?;''', (user.getName(), str(artObject.getObjectId())))
+        self.dbConnect.commit()
+
     def getFavorites(self, user):
         logging.debug("Checking for persisted favorites")
         resultSet = []
-        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=?;", (user.getName(),))
+        self.dbCursor.execute("SELECT objectId, title, artist, date, nationality, medium, imageUrl from zeronormal where user=? ORDER BY title ASC;", (user.getName(),))
         rows = self.dbCursor.fetchall()
         for row in rows:
             resultSet.append(ArtObject(row[0], row[1], row[2], row[3], row[4], row[5], row[6]))
