@@ -7,5 +7,6 @@ bin/
 include/
 lib/
 pyvenv.cfg
+pandas/
 *.curator
 
