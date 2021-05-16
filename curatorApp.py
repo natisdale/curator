@@ -382,6 +382,12 @@ class CuratorApp:
             self.imageFrame,
             text='\nMedium: ' + medium
             )
+        else: 
+            logging.debug("All empty")
+            self.artObjectDetails = Label(
+                self.imageFrame,
+                text=''
+        )
 
     # Retrieve and display the image of the given ArtObject
     def show(self, artObject):
