@@ -15,11 +15,13 @@ packaging==20.9
 Pillow==8.1.2
 pluggy==0.13.1
 py==1.10.0
+pyaudio==0.2.11
 pycodestyle==2.6.0
 pyflakes==2.2.0
 pylint==2.7.2
 pyparsing==2.4.7
 pytest==6.2.2
+SpeechRecognition==3.8.1
 requests==2.25.1
 rope==0.18.0
 tkinterweb==2.1.8

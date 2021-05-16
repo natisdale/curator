@@ -12,6 +12,7 @@ import os
 from io import BytesIO
 
 cont = True
+pause = False
 
 def recognize_speech_from_mic():
     recognizer = sr.Recognizer()
@@ -45,9 +46,9 @@ def recognize_speech_from_mic():
 
 def listen():
     global cont
+    global pause
     while(cont):
         print("Please say a command.")
-        time.sleep(3)
         while(1):
             words = recognize_speech_from_mic()
             if words["transcription"]:
@@ -59,17 +60,24 @@ def listen():
             print("ERROR: {}".format(words["error"]))
             break
         print("You said: {}".format(words["transcription"]))
-        cont = words["transcription"].lower() != "quit"
+        word = words["transcription"].lower()
+        if(word == "quit"):
+            cont = False
+        elif (word == "pause"):
+            pause = True
+        elif (word == "play"):
+            pause = False 
+
 
 def play():
     root = tk.Tk()
     root.title("MET Test")
-    img1 = "https://www.metmuseum.org/-/media/images/toah/landing-page/queens_face_banner_1444_1360.jpg"
-    img2 = "https://www.metmuseum.org/-/media/images/toah/landing-page/creation_1440x960.jpg"
-    img3 = "https://www.metmuseum.org/-/media/images/toah/landing-page/china_1440x960.jpg"
-    img4 = "https://www.metmuseum.org/-/media/images/blogs/now-at-the-met/2021/2021_02/harlem-on-my-mind/1_l.jpg"
-    img5 = "https://www.metmuseum.org/-/media/images/learn/metkids-create/a-colorful-garden-gathering_crop-resized.jpg"
-    img6 = "https://www.metmuseum.org/-/media/images/primer/british-galleries/bg104b_everypricetellsastory/bg104b_introimageteasets.jpg"
+    img1 = "https://i.imgur.com/sxgudbo.jpg"
+    img2 = "https://i.imgur.com/HEYyG6t.jpg"
+    img3 = "https://i.imgur.com/u1DokH7.jpg"
+    img4 = "https://i.imgur.com/vTO84Hy.jpg"
+    img5 = "https://i.imgur.com/Cg9Vgy2.jpg"
+    img6 = "https://i.imgur.com/mFJyggj.jpg"
     images = [img1, img2, img3, img4, img5, img6]
     photos = [ImageTk.PhotoImage(Image.open(BytesIO(requests.get(x).content))) for x in images]
     panel = tk.Label()
@@ -77,17 +85,21 @@ def play():
     panel.counter = 0
     panel.subcounter = 0
     def next_pic():
-        panel['image'] = panel.photos[panel.counter%len(panel.photos)]
-        if(panel.subcounter == 9):
-            panel.after(500, next_pic)
-            panel.subcounter = 0
-            panel.counter += 1
+        if(not pause):
+            panel['image'] = panel.photos[panel.counter%len(panel.photos)]
+            if(panel.subcounter == 9):
+                panel.after(500, next_pic)
+                panel.subcounter = 0
+                panel.counter += 1
+            else:
+                panel.after(500, next_pic)
+                panel.subcounter += 1
+            if(not cont):
+                root.destroy()
+                root.quit()
+                return
         else:
             panel.after(500, next_pic)
-            panel.subcounter += 1
-        if(not cont):
-            root.destroy()
-            return
     panel.pack(side="bottom", fill="both", expand="yes")
     next_pic()
     root.mainloop()
@@ -99,7 +111,9 @@ if __name__ == "__main__":
     t1.start()
     t2.start()
     t1.join()
-    cont = False
+    print("T1 joined")
     t2.join()
+    print("T2 joined")
+    exit()
     
     
