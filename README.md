@@ -9,6 +9,6 @@ The Met Museum Curator application will allow a user to search the New York Metr
 
 The graphical interface, written in Python using Tkinter, is shown below.  The left panel contains controls for setting query parameters.  The middle pane shows the titles of objects returned by a search, as well as those that have been saved as favorites.  Selecting an item from the results list displays the main image for that art object and select details in the pane on the right.
 
-![GUI Prototype](img/curatorWithFavorites.png "GUI Prototype")
+![GUI Prototype on MacOS](img/curatorMacGUI.png "GUI Prototype on MacOS")
 
 Note: Install required python modules using `pip3 install requirements.txt`.  Launch app using `python3 curatorApp.py`
