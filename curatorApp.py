@@ -256,6 +256,8 @@ class CuratorApp:
         self.pilImage = Image.open(self.objectImage)
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
+        self.artObjectDetails.pack_forget() ## unpacks the label for a new search
+
 
         # self.updateImage('https://www.csuchico.edu/style-guide/visual/_images/Chico-state-athletics-icon.png')
         
