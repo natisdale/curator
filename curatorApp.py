@@ -585,8 +585,10 @@ class CuratorApp:
         logging.debug('Importing favorites...')
 
         go = messagebox.askokcancel(
-            "Overwrite Warning", 
-            "Importing a favorites file will overwrite your current favorites. If you'd like to keep your favorites, use the \"Export Favorites\" option before continuing. Would you like to proceed?",
+            "Import Warning", 
+            "Importing a favorites file will append the imported items to your "\
+            "current favorites. If you'd like to preserve your current favorites list, "\
+            "use the \"Export Favorites\" option before continuing. Would you like to proceed?",
             default="cancel"
         )
         
@@ -611,7 +613,17 @@ class CuratorApp:
                     f['imageUrl']
                     )
                 )
-                logging.debug(favorites)
+
+                    # Change the favorites icon if item is visible in search results
+                    if self.resultsTree.exists(f['imageUrl']):
+                        self.resultsTree.item(f['imageUrl'], values = [
+                            f['objectId'],
+                            f['artist'],
+                            f['date'],
+                            f['nationality'],
+                            f['medium'],
+                            self._getFavoriteIcon(True)
+                        ])
 
                 file.close()
             except TypeError as e:
