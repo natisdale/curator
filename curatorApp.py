@@ -4,6 +4,7 @@ import json     # used for encoding/decoding favorites
 from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
+import argparse
 # GUI
 from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, END, filedialog, messagebox
 from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview, Style
@@ -660,6 +661,14 @@ def main():
     root = Tk()
     root.title("Curator")
     root.geometry("1100x700+10+10")
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+    # the following are mutually exclusive arguments 
+    group.add_argument("--kiosk", help="Enables the Kiosk mode.", action="store_true")
+    group.add_argument("--update", help="Updates the classifaction table.", action="store_true")
+    # the following are optional arguements unless required=True is set
+    parser.add_argument("--name", help="The name of the file used for Import/Export favorites.", nargs=1, type=str)
+    args = parser.parse_args()
     app = CuratorApp(root)
     root.mainloop()
     del app
