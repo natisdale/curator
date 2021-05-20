@@ -665,7 +665,7 @@ def main():
     group = parser.add_mutually_exclusive_group()
     # the following are mutually exclusive arguments 
     group.add_argument("--kiosk", help="Enables the Kiosk mode.", action="store_true")
-    group.add_argument("--update", help="Updates the classifaction table.", action="store_true")
+    group.add_argument("--update", help="Updates the classification table.", action="store_true")
     # the following are optional arguements unless required=True is set
     parser.add_argument("--name", help="The name of the file used for Import/Export favorites.", nargs=1, type=str)
     args = parser.parse_args()
