@@ -1,15 +1,30 @@
 import logging  # used for logging
+import json     # used for encoding/decoding favorites
+import sys
+import random
+import time
 # Image processing
 from urllib.request import urlopen  # used in retrieving image
 import io  # used to handle byte stream for image
 from PIL import Image, ImageTk  # used to handle images
+import argparse
 # GUI
-from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar
-from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview
+from tkinter import Tk, Menu, BOTH, HORIZONTAL, X, IntVar, StringVar, END, filedialog, messagebox
+from tkinter.ttk import Button, Checkbutton, Entry, Label, Panedwindow, Progressbar, Spinbox, Treeview, Style
 # Curator API
-from curator import Museum, Query
+from curator import Museum, Query, User, ArtObject, DB_PATH, Database
+# Speech Recognition
+import speech_recognition as sr
+import requests
+import tkinter as tk
+import os
+from io import BytesIO
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import queue
+
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 
 class CuratorApp:
@@ -21,12 +36,16 @@ class CuratorApp:
             "https://collectionapi.metmuseum.org/public/collection/v1/objects/"
         )
         self.queryObject = Query(self.museum)
+        self.user = User('curator')
+        
+        self.executor = ThreadPoolExecutor()
+        self.artObjectQueue = queue.Queue()
         
         # Menu
         menubar = Menu(root)
         fileMenu = Menu(menubar)
-        fileMenu.add_command(label="Load Favorites")
-        fileMenu.add_command(label="Save Favorites")
+        fileMenu.add_command(label="Import Favorites", command=self.importFavorites)
+        fileMenu.add_command(label="Export Favorites", command=self.exportFavorites)
         fileMenu.add_separator()
         fileMenu.add_command(label="Quit", command=root.quit)
         menubar.add_cascade(label='Curator', menu=fileMenu)
@@ -149,14 +168,23 @@ class CuratorApp:
         self.progressbar.config(mode='indeterminate')
         # Widgets for resultsFrame
         self.resultsTree = Treeview(self.resultsFrame, height=200)
-        # browse option to only allow selection of single item
-        self.resultsTree.config(selectmode='browse')
-        self.resultsTree.bind('<<TreeviewSelect>>', self.showByUrl)
+        # resultTree config
+        self.resultsTree.config(selectmode='browse', show='tree', columns=('ID', 'Artist', 'Date', 'Nationality', 'Medium', 'Favorite'), displaycolumns=['Favorite'])
+        self.resultsTree.column('Favorite', anchor='center', width=30, stretch=False)
+        self.resultsTree.bind('<ButtonRelease-1>', self._selectionHandler)
         # Widgets for imageFrame
         self.artObjectImage = Label(
             self.imageFrame,
             text='<image placeholder>'
         )
+
+        self.artObjectDetails = Label(
+            self.imageFrame,
+            text=''
+        )
+
+        # Updates image to WildCat Logo before controls are displayed
+        self.displayLogo()
 
         # Place controls
         self.window.pack(fill=BOTH, expand=True)
@@ -183,9 +211,22 @@ class CuratorApp:
         self.progressbar.pack(fill=X)
         self.resultsTree.pack(fill=BOTH, expand=True)
         self.artObjectImage.pack(fill=BOTH, expand=True)
+        self.artObjectDetails.pack(fill=BOTH, expand=True)
 
-    # Pass paramters from GUI to the Query object to build the query string
+        # Additional styling
+        style = Style()
+        style.configure("Treeview", rowheight=25)
+
+        # Display favorites on startup (if set)
+        self.user.loadFavorites()
+        self.listFavorites()
+
+
+
     def buildQuery(self):
+        '''
+        Pass paramters from GUI to the Query object to build the query string
+        '''
         # Example of rest call for object search:
         # https://collectionapi.metmuseum.org/public/collection/v1/search?title=true&classification=PaintingsdepartmentId=11&isOnView=true&hasImages=true&isHighlight=false$dateBegin=-2000&dateEnd=2021&q=%22The%20Laundress%22
         if self.isTitleSearchValue.get() == 1:
@@ -216,64 +257,534 @@ class CuratorApp:
         self.queryObject.setParameter("dateEnd", self.dateEndValue.get())
         self.queryObject.setParameter("q", self.query.get())
 
-    # Runs the rest query based on the paramters selected in GUI
-    def runSearch(self):
-        self.progressbar.start()
-        # reset adapated from:
-        # https://stackoverflow.com/questions/22812134/how-to-clear-an-entire-treeview-with-tkinter
-        for i in self.resultsTree.get_children():
-            self.resultsTree.delete(i)
-        self.buildQuery()
-        resultSet = self.queryObject.runQuery()
-        # Iterate through results, and display the image of the first object
-        for position, artObject in enumerate(resultSet):
-            if position == 0:
-                self.show(artObject)
-            self.resultsTree.insert(
-                '',
-                position,
-                artObject.imageUrl,
-                text=artObject.title
-            )
-            position += 1
-        self.progressbar.stop()
-
-    # Retrieve and display the image of the item selected in the tree
-    def showByUrl(self, event):
-        for i in self.resultsTree.selection():
-            logging.debug(i)
-            self.openedUrl = urlopen(i)
-            self.objectImage = io.BytesIO(self.openedUrl.read())
-            self.pilImage = Image.open(self.objectImage)
-            self.tkImage = ImageTk.PhotoImage(self.pilImage)
-            self.artObjectImage.destroy()
-            self.artObjectImage = Label(
-                self.imageFrame,
-                text='',
-                image=self.tkImage
-            )
-            self.artObjectImage.pack(fill=BOTH, expand=True)
-
-    # Retrieve and display the image of the given ArtObject
-    def show(self, artObject):
-        # adapted from
-        # https://www.daniweb.com/programming/software-development/code/493005/display-an-image-from-the-web-tkinter
-        logging.debug("Retrieving image from " + str(artObject.getImageUrl()))
-        self.openedUrl = urlopen(artObject.getImageUrl())
+    def displayLogo(self):
+        '''
+        displayLogo(): load logo into artObjectImage control
+        '''
+        self.openedUrl = urlopen('https://www.csuchico.edu/style-guide/visual/_images/Chico-state-athletics-icon.png')
         self.objectImage = io.BytesIO(self.openedUrl.read())
         self.pilImage = Image.open(self.objectImage)
         self.tkImage = ImageTk.PhotoImage(self.pilImage)
         self.artObjectImage.config(image=self.tkImage)
 
+        # self.updateImage('https://www.csuchico.edu/style-guide/visual/_images/Chico-state-athletics-icon.png')
+        
+    def queueArtObjects(self):
+        '''
+        queueArtObjects(): loads images in queue objects result set into a queue
+        '''
+        logging.debug('queueArtObjects thread running')
+        resultSet = self.queryObject.fetchArtObjects()
+        for artObject in resultSet:
+            logging.debug('queueArtObjects adding objects to queue')
+            self.artObjectQueue.put(artObject)
+        logging.debug('queueArtObjects finished queueing Art Objects')
+    
+    def dequeueArtObjects(self):
+        '''
+        dequeueArtObjects: loads queued objects into TreeView contoller
+        '''
+        logging.debug('dequeueArtObjects thread running')
+        while True:
+            artObject = self.artObjectQueue.get()
+            logging.debug('dequeueArtObjects: ' + artObject.title)
+            if artObject.title == 'done':
+                logging.debug('dequeueArtjects done')
+                break
+            else:
+                logging.debug('dequeueArtObjects: inserting ' + artObject.title)
+                self.executor.submit(self.resultsTree.insert(
+                    'searchResults',
+                    END,
+                    artObject.imageUrl,
+                    text=artObject.title,
+                    values=[
+                        artObject.objectId,
+                        artObject.artist, 
+                        artObject.date, 
+                        artObject.nationality, 
+                        artObject.medium, 
+                        self._getFavoriteIcon(self.user.isFavorite(artObject.objectId))
+                    ]
+                ))
+        self.executor.submit(self.displayLogo)
+        self.progressbar.stop()
+    
+    def runSearch(self):
+        '''
+        Runs the rest query based on the paramters selected in GUI
+        '''
+        self.progressbar.start()
+        # reset adapated from:
+        # https://stackoverflow.com/questions/22812134/how-to-clear-an-entire-treeview-with-tkinter
+        for i in self.resultsTree.get_children():
+            self.resultsTree.delete(i)
+        self.listFavorites()
+
+        self.resultsTree.insert('', 0, 'searchResults', text='Search Results')
+        self.resultsTree.item("searchResults", open = True)
+
+        self.buildQuery()
+        
+        self.executor.submit(self.queueArtObjects)
+        self.executor.submit(self.dequeueArtObjects)  
+    
+    def detailsCheck(self, artist, date, nationality, medium): 
+        if artist:
+            if date:
+                if nationality:
+                    if medium: ## non are empty
+                        logging.debug("Non are empty")
+                        self.artObjectDetails = Label(
+                        self.imageFrame,
+                        text='Artist: ' + artist +
+                            '\nDate: ' + date +
+                            '\nNationality: ' + nationality +
+                            '\nMedium: ' + medium
+                        )
+                    else: ## artist, date, nation.
+                        logging.debug("Medium description empty")
+                        self.artObjectDetails = Label(
+                        self.imageFrame,
+                        text='Artist: ' + artist +
+                            '\nDate: ' + date +
+                            '\nNationality: ' + nationality
+                        )
+                elif medium: ## artist date medium
+                    logging.debug("Nationality description empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nDate: ' + date +
+                        '\nMedium: ' + medium
+                    )
+                else: ## artist date
+                    logging.debug("Nationality, Medium descriptions empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nDate: ' + date
+                    )
+            elif nationality:  
+                if medium: ## artist nation. medium
+                    logging.debug("Date description empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nNationality: ' + nationality +
+                        '\nMedium: ' + medium
+                    )
+                else: ##artist nation.
+                    logging.debug("Date, Medium descriptions empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='Artist: ' + artist +
+                        '\nNationality: ' + nationality
+                    ) 
+            elif medium: # artist medium
+                logging.debug("Date, Nationality descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='Artist: ' + artist +
+                    '\nMedium: ' + medium
+                )
+            else: ## just artist
+                logging.debug("Date, Nationality, Medium descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='Artist: ' + artist
+                )
+        elif date:
+            if nationality:
+                if medium: ## date nation. medium
+                    logging.debug("Artist description empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='\nDate: ' + date +
+                        '\nNationality: ' + nationality +
+                        '\nMedium: ' + medium
+                    )
+                else:  ## date nation.
+                    logging.debug("Artist, Medium descriptions empty")
+                    self.artObjectDetails = Label(
+                    self.imageFrame,
+                    text='\nDate: ' + date +
+                        '\nNationality: ' + nationality
+                    )
+            elif medium: ## date medium
+                logging.debug("Artist, Nationality descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nDate: ' + date +
+                    '\nMedium: ' + medium
+                )
+            else: ## just date
+                logging.debug("Artist, Nationality, Medium descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nDate: ' + date
+                )
+        elif nationality:
+            if medium: ## nation. medium
+                logging.debug("Artist, Date descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nNationality: ' + nationality +
+                    '\nMedium: ' + medium
+                )
+            else: ## just nationality
+                logging.debug("Artist, Date, Medium descriptions empty")
+                self.artObjectDetails = Label(
+                self.imageFrame,
+                text='\nNationality: ' + nationality
+                )
+        elif medium: ## just medium
+            logging.debug("Artist, Date, Nationality descriptions empty")
+            self.artObjectDetails = Label(
+            self.imageFrame,
+            text='\nMedium: ' + medium
+            )
+        else: 
+            logging.debug("All empty")
+            self.artObjectDetails = Label(
+                self.imageFrame,
+                text=''
+        )
+    def showByUrl(self, i):
+        '''
+        Retrieve and display the image of the item selected in the tree
+        '''
+        logging.debug(i)
+        
+        artist_value = ''.join(self.resultsTree.item(i, "value")[1])
+        date_value = ''.join(self.resultsTree.item(i, "value")[2])
+        nationality_val = ''.join(self.resultsTree.item(i, "value")[3])
+        medium_val = ''.join(self.resultsTree.item(i, "value")[4])
+        self.updateDescription(artist_value, date_value, nationality_val, medium_val)
+        self.updateImage(i.replace('_cur_fav_', ''))
+
+    def updateImage(self, url):
+        '''
+        Sets the art image in the image pane
+        '''
+        self.openedUrl = urlopen(url)
+        self.objectImage = io.BytesIO(self.openedUrl.read())
+        self.pilImage = Image.open(self.objectImage)
+        self.pilImage.thumbnail((self.imageFrame.winfo_width()-15, self.imageFrame.winfo_width()))
+        self.tkImage = ImageTk.PhotoImage(self.pilImage)
+        self.artObjectImage.destroy()
+        self.artObjectImage = Label(
+            self.imageFrame,
+            text='',
+            image=self.tkImage,
+            anchor="center"
+        )
+        self.artObjectImage.pack(fill=BOTH, expand=True)
+
+    def updateDescription(self, artist, date, nationality, medium):
+        '''
+        Sets the art description in the image pane
+        '''
+        self.artObjectDetails.destroy()
+        self.detailsCheck(artist, date, nationality, medium)
+        self.artObjectDetails.pack(fill=BOTH, expand=True)
+
+    def _selectionHandler(self, event):
+        '''
+        Click for handler for treeView
+        '''
+        index = self.resultsTree.identify_row(event.y)
+        column = self.resultsTree.identify_column(event.x)
+
+        # Ignore clicks on the tree "parents"
+        if index in ['favorites', 'searchResults']:
+            return
+        
+        # "#1" (favorite) is the first visible column after the row's 
+        # text value col (#0)
+        if column == "#1":
+            self._toggleFavorite(index)
+        else:
+            self.showByUrl(index)
+
+    def _toggleFavorite(self, i):
+        '''
+        Set/unset a piece as favorite and update treeView
+        '''
+        logging.debug(f"Toggling favorite: {i}")
+        resultsId = i.replace('_cur_fav_', '')
+        favoritesId = f"_cur_fav_{resultsId}"
+
+        artObject = ArtObject(
+            objectId = self.resultsTree.item(i, "value")[0],
+            title = self.resultsTree.item(i, "text"),
+            artist = self.resultsTree.item(i, "value")[1],
+            date = self.resultsTree.item(i, "value")[2],
+            nationality = self.resultsTree.item(i, "value")[3],
+            medium = self.resultsTree.item(i, "value")[4],
+            imageUrl = i 
+        )
+
+        if self.user.isFavorite(artObject.objectId):
+            self.user.removeFavorite(artObject)
+            favIcon = False
+        else:
+            self.user.addFavorite(artObject)
+            favIcon = True
+
+        # Update both favorites and results item rows
+        values = [
+            artObject.objectId,
+            artObject.artist,
+            artObject.date,
+            artObject.nationality,
+            artObject.medium,
+            self._getFavoriteIcon(favIcon)
+        ]
+
+        for id in [resultsId, favoritesId]:
+            if self.resultsTree.exists(id):
+                self.resultsTree.item(id, values = values)
+
+        self.listFavorites()
+
+    def listFavorites(self, expand = True):
+        '''
+        Clear and re-render favorites tree
+        '''
+        # Remove existing "favorites" tree item
+        if (self.resultsTree.exists('favorites')): 
+            self.resultsTree.delete('favorites') 
+
+        favoritesSet = self.user.getFavorites()
+        
+        if len(favoritesSet) > 0:
+            favListItem = self.resultsTree.insert('', END, 'favorites', text='Favorites')
+            self.resultsTree.item("favorites", open = expand)
+
+            for position, artObject in enumerate(favoritesSet):
+                self.resultsTree.insert(
+                    favListItem,
+                    position,
+                    '_cur_fav_' + artObject.imageUrl,
+                    text=artObject.title,
+                    values=[
+                        artObject.objectId,
+                        artObject.artist, 
+                        artObject.date, 
+                        artObject.nationality, 
+                        artObject.medium, 
+                        self._getFavoriteIcon(self.user.isFavorite(artObject.objectId))
+                    ]
+                )
+                position += 1
+
+    def _getFavoriteIcon(self, isFavorite):
+        '''
+        Return the unicode string for the favorites icon
+        '''
+        if isFavorite:
+            return u"\u2605"
+        else:
+            return u"\u2606"
+
+    def importFavorites(self):
+        '''
+        Handler for the "Import Favorites" menu option
+        '''
+        logging.debug('Importing favorites...')
+
+        go = messagebox.askokcancel(
+            "Import Warning", 
+            "Importing a favorites file will append the imported items to your "\
+            "current favorites. If you'd like to preserve your current favorites list, "\
+            "use the \"Export Favorites\" option before continuing. Would you like to proceed?",
+            default="cancel"
+        )
+        
+        if go:
+            try:
+                file = filedialog.askopenfile(
+                    mode="r", 
+                    title='Import Favorites', 
+                    filetypes=[('Curator Favorites', '*.curator')], 
+                    defaultextension='.curator'
+                )
+
+                favorites = json.load(file)
+                for f in favorites:
+                    self.user.addFavorite(ArtObject(
+                    f['objectId'],
+                    f['title'], 
+                    f['artist'], 
+                    f['date'],
+                    f['nationality'],
+                    f['medium'],
+                    f['imageUrl']
+                    )
+                )
+
+                    # Change the favorites icon if item is visible in search results
+                    if self.resultsTree.exists(f['imageUrl']):
+                        self.resultsTree.item(f['imageUrl'], values = [
+                            f['objectId'],
+                            f['artist'],
+                            f['date'],
+                            f['nationality'],
+                            f['medium'],
+                            self._getFavoriteIcon(True)
+                        ])
+
+                file.close()
+            except TypeError as e:
+                logging.debug(f'Couldn\'t convert JSON favorites to obj. {str(e)}')
+            except Exception as e:
+                logging.debug(f'Something went wrong importing favorites. {str(e)}')
+            finally:
+                if file:
+                    file.close()
+
+            self.listFavorites()
+
+    def exportFavorites(self):
+        '''
+        Handler for the "Export Favorites" menu option
+        '''
+        logging.debug('Exporting favorites...')
+
+        try:
+            file = filedialog.asksaveasfile(
+                mode='w', 
+                title='Export Favorites', 
+                filetypes=[('Curator Favorites', '*.curator')], 
+                defaultextension='.curator'
+            )
+            favorites = self.user.getFavorites()
+            json.dump(
+                favorites, 
+                file, 
+                default=lambda o: o.__dict__, 
+                sort_keys=True, 
+                indent=4
+            )
+            file.close()
+        except TypeError as e:
+            logging.debug(f'Couldn\'t convert favorites to JSON. {str(e)}')
+        except Exception as e:
+            logging.debug(f'Something went wrong exporting favorites. {str(e)}')
+        finally:
+            if file:
+                file.close()
+
+cont = True
+pause = False
+
+def recognize_speech_from_mic():
+    recognizer = sr.Recognizer()
+    microphone = sr.Microphone()
+
+    with microphone as source:
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
+
+    # response object
+    response = {
+        "success": True,
+        "error": None,
+        "transcription": None
+    }
+
+    # try recognizing speech
+    # if a RequestError or UnknownValueError exception is caught,
+    # update response and return
+    try:
+        response["transcription"] = recognizer.recognize_google(audio)
+    except sr.RequestError:
+        # API Error
+        response["success"] = False
+        response["error"] = "API unavailable"
+    except sr.UnknownValueError:
+        # No words detected
+        response["error"] = "Unable to recognize speech"
+
+    return response
+
+def listen():
+    global cont
+    global pause
+    while(cont):
+        print("Please say a command.")
+        while(1):
+            words = recognize_speech_from_mic()
+            if words["transcription"]:
+                break
+            if not words["success"]:
+                break
+            print("I didn't catch that. What did you say?")
+        if words["error"]:
+            print("ERROR: {}".format(words["error"]))
+            break
+        print("You said: {}".format(words["transcription"]))
+        word = words["transcription"].lower()
+        if(word == "quit"):
+            cont = False
+        elif (word == "pause"):
+            pause = True
+        elif (word == "play"):
+            pause = False 
+
+
+def play():
+    root = tk.Tk()
+    root.title("New York Met Museum Kiosk")
+    user = User('curator')
+    db = Database(DB_PATH)
+    resultSet = db.getFavorites(user)
+    images = []
+    for artObject in resultSet:
+        images.append(artObject.getImageUrl())
+    photos = [ImageTk.PhotoImage(Image.open(BytesIO(requests.get(x).content))) for x in images]
+    panel = tk.Label()
+    panel.photos = photos 
+    panel.counter = 0
+    panel.subcounter = 0
+    def next_pic():
+        if(not pause):
+            panel['image'] = panel.photos[panel.counter%len(panel.photos)]
+            if(panel.subcounter == 9):
+                panel.after(500, next_pic)
+                panel.subcounter = 0
+                panel.counter += 1
+            else:
+                panel.after(500, next_pic)
+                panel.subcounter += 1
+            if(not cont):
+                root.destroy()
+                root.quit()
+                return
+        else:
+            panel.after(500, next_pic)
+    panel.pack(side="bottom", fill="both", expand="yes")
+    next_pic()
+    root.mainloop()
 
 def main():
-    root = Tk()
-    root.title("Curator")
-    root.geometry("1100x700+10+10")
-    app = CuratorApp(root)
-    root.mainloop()
-    del app
-    del root
+    if(len(sys.argv) > 1 and sys.argv[1] == '--kiosk'):
+        t1 = threading.Thread(target=listen)
+        t2 = threading.Thread(target=play)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+        exit()
+    else:   
+        root = Tk()
+        root.title("Curator")
+        root.geometry("1100x700+10+10")
+        app = CuratorApp(root)
+        root.mainloop()
+        del app
+        del root
 
 
 if __name__ == "__main__":
